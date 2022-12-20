@@ -11,18 +11,18 @@ function master_pb(inputFile::String)
     master = Model(CPLEX.Optimizer)
 
     @variable(master, x[e in 1:m], Int)
-    @variable(master, z[e in 1:m, k in 1:K], Bin)
+    @variable(master, z[k in 1:K, e in 1:m], Bin)
     @variable(master, y[k in 1:K, v in 1:n], Bin)
     @variable(master, alpha >= 0)
     @variable(master, beta[e in 1:m] >= 0)
-    @variable(master, t[k in 1:K])
+    @variable(master, t[k in 1:K]) # for the slave problem
 
 
     @constraint(master, [e in 1:m], alpha + beta[e] >= x[e]*(l_hat[E[e][1]]+l_hat[E[e][2]]))
     @constraint(master, [v in 1:n], sum(y[k][v] for k in 1:K) == 1)
-    @constraint(master, [e in 1:m, k in 1:K], sum(y[k][v]*A[v][e] for v in 1:n) - 1 <= z[e][k])
-    @constraint(master, [e in 1:m, k in 1:K], sum(y[k][v]*A[v][e] for v in 1:n) / 2 >= z[e][k])
-    @constraint(master, [e in 1:m], x[e] == sum(z[e][k] for k in 1:K))
+    @constraint(master, [e in 1:m, k in 1:K], sum(y[k][v]*A[v][e] for v in 1:n) - 1 <= z[k][e])
+    @constraint(master, [e in 1:m, k in 1:K], sum(y[k][v]*A[v][e] for v in 1:n) / 2 >= z[k][e])
+    @constraint(master, [e in 1:m], x[e] == sum(z[k][e] for k in 1:K))
     # slave problem
     @constraint(master, [k in 1:K], t[k] == slave_pb(k, n, w, y, W))
     @constraint(master, [k in 1:K], t[k] <= B - sum(w[v]*y[k][v] for v in 1:n))
@@ -30,27 +30,27 @@ function master_pb(inputFile::String)
     @objective(master, Min, sum(x[e]*l[e] for e in 1:m) + L*alpha + 3*sum(beta[e] for e in 1:m))
 
     # Désactive le presolve (simplification automatique du modèle)
-    set_optimizer_attribute(slave, "CPXPARAM_Preprocessing_Presolve", 0)
+    set_optimizer_attribute(master, "CPXPARAM_Preprocessing_Presolve", 0)
     # Désactive la génération de coupes automatiques
-    set_optimizer_attribute(slave, "CPXPARAM_MIP_Limits_CutsFactor", 0)
+    set_optimizer_attribute(master, "CPXPARAM_MIP_Limits_CutsFactor", 0)
     # Désactive la génération de solutions entières à partir de solutions fractionnaires
-    set_optimizer_attribute(slave, "CPXPARAM_MIP_Strategy_FPHeur", -1)
+    set_optimizer_attribute(master, "CPXPARAM_MIP_Strategy_FPHeur", -1)
     # Désactive les sorties de CPLEX (optionnel)
-    set_optimizer_attribute(slave, "CPX_PARAM_SCRIND", 0)
+    set_optimizer_attribute(master, "CPX_PARAM_SCRIND", 0)
 
     start = time()
-    optimize!(slave)
+    optimize!(master)
     computation_time = time() - start
 
-    feasiblefound = primal_status(slave) == MOI.FEASIBLE_POINT
+    feasiblefound = primal_status(master) == MOI.FEASIBLE_POINT
     if feasiblefound
-        obj = JuMP.objective_value(slave)
+        obj = JuMP.objective_value(master)
     end
 
     return obj, computation_time
 end
 
-function slave_pb(k::Int, n::Int, w, y, W::Int)
+function slave_pb(k::Int, n::Int, w, y, W_global::Int, W)
     slave = Model(CPLEX.Optimizer)
 
     @variable(slave, zeta >= 0)
@@ -58,7 +58,7 @@ function slave_pb(k::Int, n::Int, w, y, W::Int)
 
     @constraint(slave, [v in 1:n], zeta + gamma[v] >= w[v]*y[k][v])
 
-    @objective(slave, Min, W*zeta + sum(W[v]*gamma[v] for v in 1:n))
+    @objective(slave, Min, W_global*zeta + sum(W[v]*gamma[v] for v in 1:n))
 
     # Désactive le presolve (simplification automatique du modèle)
     set_optimizer_attribute(slave, "CPXPARAM_Preprocessing_Presolve", 0)
