@@ -19,3 +19,7 @@ end
 function node2(e::Int64, n::Int64)::Int64
     return (e-1)%n+1
 end
+
+function getEdge(n::Int, n1::Int, n2::Int)::Int64
+    return (n1-1)*n + n2
+end
