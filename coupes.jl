@@ -3,7 +3,7 @@ using CPLEX
 
 include("common.jl")
 
-function slave_objective(l, L::Int, l_hat, x_star, E, m::Int)
+function slave_objective(l, L::Int, lh, x_star, m::Int)
     slave_obj = Model(CPLEX.Optimizer)
 
     @variable(slave_obj, delta_1[e in 1:m] >= 0)
@@ -11,7 +11,7 @@ function slave_objective(l, L::Int, l_hat, x_star, E, m::Int)
     @constraint(slave_obj, sum(delta_1[e] for e in 1:m) <= L)
     @constraint(slave_obj, [e in 1:m], delta_1[e] <= 3)
 
-    @objective(slave_obj, Max, sum(x_star[e]*(l[e]+delta_1[e]*(l_hat[node1(e)]+l_hat[node2(e)])) for e in 1:m))
+    @objective(slave_obj, Max, sum(x_star[e]*(l[e]+delta_1[e]*(lh[node1(e, n)]+lh[node2(e, n)])) for e in 1:m))
 
     # Désactive le presolve (simplification automatique du modèle)
     # set_optimizer_attribute(slave_obj, "CPXPARAM_Preprocessing_Presolve", 0)
@@ -36,15 +36,15 @@ function slave_objective(l, L::Int, l_hat, x_star, E, m::Int)
     # SHALL RETURN DELTA1_STAR
 end
 
-function slave_constraint(k::Int, w, W_global::Int, W, y_star, n::Int)
+function slave_constraint(k::Int, w_v, W::Int, W_v, y_star, n::Int)
     slave_cons = Model(CPLEX.Optimizer)
 
     @variable(slave_cons, delta_2[v in 1:n] >= 0)
 
-    @constraint(slave_cons, sum(delta_2[v] for v in 1:n) <= W_global)
-    @constraint(slave_cons, [v in 1:n], delta_2[v] <= W[v])
+    @constraint(slave_cons, sum(delta_2[v] for v in 1:n) <= W)
+    @constraint(slave_cons, [v in 1:n], delta_2[v] <= W_v[v])
 
-    @objective(slave_cons, Max, sum(y_star[k,v]*w[v]*(1+delta_2[v]) for v in 1:n))
+    @objective(slave_cons, Max, sum(y_star[k,v]*w_v[v]*(1+delta_2[v]) for v in 1:n))
 
     # Désactive le presolve (simplification automatique du modèle)
     # set_optimizer_attribute(slave_cons, "CPXPARAM_Preprocessing_Presolve", 0)
@@ -69,7 +69,7 @@ function slave_constraint(k::Int, w, W_global::Int, W, y_star, n::Int)
     # SHALL RETURN DELTA2_STAR
 end
 
-function master_pb(E, n::Int, m::Int, K::Int, w, W_global::Int, W, l, L::Int, l_hat, B::Int, A, U_1, U_2)
+function master_pb(n::Int, m::Int, K::Int, w_v, W::Int, W_v, l, L::Int, lh, B::Int, U_1, U_2)
     master = Model(CPLEX.Optimizer)
 
     @variable(master, x[e in 1:m], Int)
@@ -77,14 +77,14 @@ function master_pb(E, n::Int, m::Int, K::Int, w, W_global::Int, W, l, L::Int, l_
     @variable(master, y[k in 1:K, v in 1:n], Bin)
     @variable(master, t >= 0)
 
-    @constraint(master, [v in 1:n], sum(y[k,v] for k in 1:K) == 1)
-    @constraint(master, [e in 1:m, k in 1:K], y[k][node1(e)] + y[k][node2(e)] - 1 <= z[k][e])
-    @constraint(master, [e in 1:m, k in 1:K], ((y[k][node1(e)] + y[k][node2(e)])) / 2 >= z[k][e])
-    @constraint(master, [e in 1:m], x[e] == sum(z[k][e] for k in 1:K))
+    @constraint(master, [v in 1:n], sum(y[k, v] for k in 1:K) == 1)
+    @constraint(master, [e in 1:m, k in 1:K], y[k, node1(e, n)] + y[k, node2(e, n)] - 1 <= z[k, e])
+    @constraint(master, [e in 1:m, k in 1:K], ((y[k, node1(e, n)] + y[k, node2(e, n)])) / 2 >= z[k, e])
+    @constraint(master, [e in 1:m], x[e] == sum(z[k, e] for k in 1:K))
     # slave objective
     @constraint(master, [i in 1:length(U_1)], t >= sum(U_1[i][e]*x[e] for e in 1:m))
     # slave constraint
-    @constraint(master, [i in 1:length(U_2), k in 1:K], sum(U_2[i][v]*y[k][v] for v in 1:n) <= B)
+    @constraint(master, [i in 1:length(U_2), k in 1:K], sum(U_2[i][v]*y[k, v] for v in 1:n) <= B)
 
     @objective(master, Min, t)
 
@@ -113,49 +113,49 @@ function master_pb(E, n::Int, m::Int, K::Int, w, W_global::Int, W, l, L::Int, l_
 end
 
 function solveByCuts(inputFile::String)
-    include(inputFile)          # contains n, coordinates, lh[v], L, w_v, W_v, W, K, B
+    include(inputFile)          # contains n, coordinates, lh[v], L, w_v, W_v, W_v, K, B
     println("nb max de cluster : K = ", K)
     println("poids max d'un cluster : B = ", B)
     m = n*n
     l = generate_l(coordinates, n)
 
     U_1 = Vector{Vector{Float64}}()
-    append!(U_1, [l[e] for e in 1:m])
+    push!(U_1, [l[e] for e in 1:m])
     U_2 = Vector{Vector{Float64}}()
-    append!(U_2, [w[v] for v in 1:n])
+    push!(U_2, [w_v[v] for v in 1:n])
 
     start = time()
 
     # first solution
     continue_resolution = false
-    t, x, y, lower_bound = master_pb(E, n, m, K, w, W_global, W, l, L, l_hat, B, A, U_1, U_2)
-    delta1, obj_val = slave_objective(l, L, l_hat, x, E, m)
+    t, x, y, lower_bound = master_pb(n, m, K, w_v, W, W_v, l, L, lh, B, U_1, U_2)
+    delta1, obj_val = slave_objective(l, L, lh, x, m)
     if obj_val > t
-        new_constraint = [l[e]+delta1[e]*(l_hat[E[e][1]]+l_hat[E[e][2]]) for e in 1:m]
-        append!(U_1, new_constraint)
+        new_constraint = [l[e]+delta1[e]*(lh[node1(e, n)]+lh[node2(e, n)]) for e in 1:m]
+        push!(U_1, new_constraint)
         continue_resolution = true
     end
-    delta2, cons_val = slave_constraint(k, w, W_global, W, y, n)
+    delta2, cons_val = slave_constraint(k, w_v, W, W_v, y, n)
     if cons_val > B
-        new_constraint = [w[v]*(1+delta2[v]) for v in 1:n]
-        append!(U_2, new_constraint)
+        new_constraint = [w_v[v]*(1+delta2[v]) for v in 1:n]
+        push!(U_2, new_constraint)
         continue_resolution = true
     end
 
     # iterations of the resolution
     while continue_resolution
         continue_resolution = false
-        t, x, y, lower_bound = master_pb(E, n, m, K, w, W_global, W, l, L, l_hat, B, A, U_1, U_2)
-        delta1, obj_val = slave_objective(l, L, l_hat, x, E, m)
+        t, x, y, lower_bound = master_pb(n, m, K, w_v, W, W_v, l, L, lh, B, U_1, U_2)
+        delta1, obj_val = slave_objective(l, L, lh, x, m)
         if obj_val > t
-            new_constraint = [l[e]+delta1[e]*(l_hat[E[e][1]]+l_hat[E[e][2]]) for e in 1:m]
-            append!(U_1, new_constraint)
+            new_constraint = [l[e]+delta1[e]*(lh[node1(e, n)]+lh[node2(e, n)]) for e in 1:m]
+            push!(U_1, new_constraint)
             continue_resolution = true
         end
-        delta2, cons_val = slave_constraint(k, w, W_global, W, y, n)
+        delta2, cons_val = slave_constraint(k, w_v, W, W_v, y, n)
         if cons_val > B
-            new_constraint = [w[v]*(1+delta2[v]) for v in 1:n]
-            append!(U_2, new_constraint)
+            new_constraint = [w_v[v]*(1+delta2[v]) for v in 1:n]
+            push!(U_2, new_constraint)
             continue_resolution = true
         end
     end
