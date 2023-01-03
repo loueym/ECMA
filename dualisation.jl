@@ -1,19 +1,7 @@
 using JuMP
 using CPLEX
 
-function distance(Xp1, Yp1, Xp2, Yp2)
-    return sqrt((Xp1-Xp2)*(Xp1-Xp2) + (Yp1-Yp2)*(Yp1-Yp2))
-end
-
-function generate_l(coordinates, n)
-    l = Vector{Float64}()
-    for v1 in 1:n
-        for v2 in 1:n
-            append!(l, distance(coordinates[v1,1], coordinates[v1,2], coordinates[v2,1], coordinates[v2,2]))
-        end
-    end
-    return l
-end
+include("common.jl")
 
 function master_pb(inputFile::String)
     include(inputFile)          # contains n, coordinates, lh[v], L, w_v, W_v, W, K, B,
@@ -36,10 +24,10 @@ function master_pb(inputFile::String)
     @variable(master, gamma[k in 1:K, v in 1:n] >= 0)
 
 
-    @constraint(master, [e in 1:m], alpha + beta[e] >= x[e]*(lh[(e-1)÷n+1]+lh[(e-1)%n+1]))
+    @constraint(master, [e in 1:m], alpha + beta[e] >= x[e]*(lh[node1(e,n)]+lh[node2(e,n)]))
     @constraint(master, [v in 1:n], sum(y[k, v] for k in 1:K) == 1)
-    @constraint(master, [e in 1:m, k in 1:K], y[k, (e-1)%n+1] + y[k, (e-1)÷n+1] - 1 <= z[k, e])
-    @constraint(master, [e in 1:m, k in 1:K], (y[k, (e-1)%n+1] + y[k, (e-1)÷n+1]) / 2 >= z[k, e])
+    @constraint(master, [e in 1:m, k in 1:K], y[k, node2(e,n)] + y[k, node1(e,n)] - 1 <= z[k, e])
+    @constraint(master, [e in 1:m, k in 1:K], (y[k, node2(e,n)] + y[k, node1(e,n)]) / 2 >= z[k, e])
     @constraint(master, [e in 1:m], x[e] == sum(z[k, e] for k in 1:K))
     # slave problem
     #@constraint(master, [k in 1:K], t[k] == slave_pb(k, n, y, W, W_v, w_v))

@@ -12,10 +12,10 @@ function generate_l(coordinates::Array{Float64,2}, n::Int)::Vector{Float64}
     return l
 end
 
-function node1(e::Int64)::Int64
+function node1(e::Int64, n::Int64)::Int64
     return (e-1)÷n+1
 end
 
-function node2(e::Int64)::Int64
+function node2(e::Int64, n::Int64)::Int64
     return (e-1)%n+1
 end
