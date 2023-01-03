@@ -30,17 +30,23 @@ function master_pb(inputFile::String)
     @variable(master, y[k in 1:K, v in 1:n], Bin)
     @variable(master, alpha >= 0)
     @variable(master, beta[e in 1:m] >= 0)
-    @variable(master, t[k in 1:K]) # for the slave problem
+    # @variable(master, t[k in 1:K]) # for the slave problem
+    # from the slave problem
+    @variable(master, zeta[k in 1:K] >= 0)
+    @variable(master, gamma[k in 1:K, v in 1:n] >= 0)
 
 
-    @constraint(master, [e in 1:m], alpha + beta[e] >= x[e]*(lh[e÷n]+lh[e%n]))
-    @constraint(master, [v in 1:n], sum(y[k][v] for k in 1:K) == 1)
-    @constraint(master, [e in 1:m, k in 1:K], y[k][e%n] + y[k][e÷n] - 1 <= z[k][e])
-    @constraint(master, [e in 1:m, k in 1:K], (y[k][e%n] + y[k][e÷n]) / 2 >= z[k][e])
-    @constraint(master, [e in 1:m], x[e] == sum(z[k][e] for k in 1:K))
+    @constraint(master, [e in 1:m], alpha + beta[e] >= x[e]*(lh[(e-1)÷n+1]+lh[(e-1)%n+1]))
+    @constraint(master, [v in 1:n], sum(y[k, v] for k in 1:K) == 1)
+    @constraint(master, [e in 1:m, k in 1:K], y[k, (e-1)%n+1] + y[k, (e-1)÷n+1] - 1 <= z[k, e])
+    @constraint(master, [e in 1:m, k in 1:K], (y[k, (e-1)%n+1] + y[k, (e-1)÷n+1]) / 2 >= z[k, e])
+    @constraint(master, [e in 1:m], x[e] == sum(z[k, e] for k in 1:K))
     # slave problem
-    @constraint(master, [k in 1:K], t[k] == slave_pb(k, n, w_v, y, W))
-    @constraint(master, [k in 1:K], t[k] <= B - sum(w_v[v]*y[k][v] for v in 1:n))
+    #@constraint(master, [k in 1:K], t[k] == slave_pb(k, n, y, W, W_v, w_v))
+    #@constraint(master, [k in 1:K], t[k] <= B - sum(w_v[v]*y[k, v] for v in 1:n))
+    # from the slave problem
+    @constraint(master, [k in 1:K, v in 1:n], zeta[k] + gamma[k, v] >= w_v[v]*y[k, v])
+    @constraint(master, [k in 1:K], W*zeta[k] + sum(W_v[v]*gamma[k, v] for v in 1:n) <= B - sum(w_v[v]*y[k, v] for v in 1:n))
 
     @objective(master, Min, sum(x[e]*l[e] for e in 1:m) + L*alpha + 3*sum(beta[e] for e in 1:m))
 
@@ -60,9 +66,19 @@ function master_pb(inputFile::String)
     feasiblefound = primal_status(master) == MOI.FEASIBLE_POINT
     if feasiblefound
         obj = JuMP.objective_value(master)
+        clusters = JuMP.value.(y)
     end
 
-    return obj, computation_time
+    res = [[] for k in 1:K]
+    for k in 1:K
+        for v in 1:n
+            if clusters[k,v]==true
+                append!(res[k], v)
+            end
+        end
+    end
+
+    return res, obj, computation_time
 end
 
 function slave_pb(k::Int, n::Int, y, W::Int, W_v, w_v)
@@ -71,7 +87,7 @@ function slave_pb(k::Int, n::Int, y, W::Int, W_v, w_v)
     @variable(slave, zeta >= 0)
     @variable(slave, gamma[v in 1:n] >= 0)
 
-    @constraint(slave, [v in 1:n], zeta + gamma[v] >= w_v[v]*y[k][v])
+    @constraint(slave, [v in 1:n], zeta + gamma[v] >= w_v[v]*y[k, v])
 
     @objective(slave, Min, W*zeta + sum(W_v[v]*gamma[v] for v in 1:n))
 
@@ -96,5 +112,6 @@ function slave_pb(k::Int, n::Int, y, W::Int, W_v, w_v)
     return obj# , computation_time
 end
 
-test, testCompTime = master_pb("data/10_ulysses_3.tsp")
-println("ottained value: ", test)
+clustersTest, test, testCompTime = master_pb("data/10_ulysses_3.tsp")
+println("attained value: ", test)
+println("clusters: ", clustersTest)
