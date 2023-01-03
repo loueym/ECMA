@@ -65,8 +65,13 @@ function master_pb(inputFile::String)
             end
         end
     end
+    xStar = [0 for i in 1:m]
+    for k in 1:K
+        for v1 in res[k]
+            for v2 in res[k]
+                xStar[(v1-1)*n + (v2-1)] = 1
 
-    return res, obj, computation_time
+    return xStar, res, obj, computation_time
 end
 
 function slave_pb(k::Int, n::Int, y, W::Int, W_v, w_v)
@@ -100,6 +105,35 @@ function slave_pb(k::Int, n::Int, y, W::Int, W_v, w_v)
     return obj# , computation_time
 end
 
-clustersTest, test, testCompTime = master_pb("data/10_ulysses_3.tsp")
+function bugFinder(inputFile::String, x_star)
+    include(inputFile)          # contains n, coordinates, lh[v], L, w_v, W_v, W, K, B
+    m = n*n
+    l = generate_l(coordinates, n)
+
+    master = Model(CPLEX.Optimizer)
+
+    @variable(master, alpha >= 0)
+    @variable(master, beta[e in 1:m] >= 0)
+
+    @constraint(master, [e in 1:m], alpha + beta[e] >= x_star[e]*(lh[node1(e,n)]+lh[node2(e,n)]))
+
+    @objective(master, Min, sum(x_star[e]*l[e] for e in 1:m) + L*alpha + 3*sum(beta[e] for e in 1:m))
+
+    # start = time()
+    # optimize!(slave)
+    # computation_time = time() - start
+
+    feasiblefound = primal_status(slave) == MOI.FEASIBLE_POINT
+    if feasiblefound
+        obj = JuMP.objective_value(slave)
+        a = JuMP.value.(alpha)
+        b = JuMP.value.(beta)
+    end
+
+    return a, b, obj
+end
+
+xStar, clustersTest, test, testCompTime = master_pb("data/10_ulysses_3.tsp")
 println("attained value: ", test)
 println("clusters: ", clustersTest)
+bugFinder("data/10_ulysses_3.tsp", xStar)
