@@ -1,15 +1,15 @@
 using JuMP
 using CPLEX
 
-function distance(p1, p2)
-    return sqrt((p1[1]-p2[1])*(p1[1]-p2[1]) + (p1[2]-p2[2])*(p1[2]-p2[2]))
+function distance(Xp1, Yp1, Xp2, Yp2)
+    return sqrt((Xp1-Xp2)*(Xp1-Xp2) + (Yp1-Yp2)*(Yp1-Yp2))
 end
 
 function generate_l(coordinates, n)
     l = Vector{Float64}()
     for v1 in 1:n
         for v2 in 1:n
-            append!(l, distance(coordinates[v1], coordinates[v2]))
+            append!(l, distance(coordinates[v1,1], coordinates[v1,2], coordinates[v2,1], coordinates[v2,2]))
         end
     end
     return l
@@ -21,7 +21,7 @@ function master_pb(inputFile::String)
     println("poids max d'un cluster : B = ", B)
     m = n*n
 
-    l = generateE(coordinates, n)
+    l = generate_l(coordinates, n)
 
     master = Model(CPLEX.Optimizer)
 
@@ -96,4 +96,5 @@ function slave_pb(k::Int, n::Int, y, W::Int, W_v, w_v)
     return obj# , computation_time
 end
 
-master_pb(inputFile::String)
+test, testCompTime = master_pb("data/10_ulysses_3.tsp")
+println("ottained value: ", test)
