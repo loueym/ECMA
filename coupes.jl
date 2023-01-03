@@ -1,6 +1,8 @@
 using JuMP
 using CPLEX
 
+include("common.jl")
+
 function slave_objective(l, L::Int, l_hat, x_star, E, m::Int)
     slave_obj = Model(CPLEX.Optimizer)
 
@@ -9,7 +11,7 @@ function slave_objective(l, L::Int, l_hat, x_star, E, m::Int)
     @constraint(slave_obj, sum(delta_1[e] for e in 1:m) <= L)
     @constraint(slave_obj, [e in 1:m], delta_1[e] <= 3)
 
-    @objective(slave_obj, Min, sum(x_star[e]*(l[e]+delta_1[e]*(l_hat[E[e][1]]+l_hat[E[e][2]])) for e in 1:m))
+    @objective(slave_obj, Max, sum(x_star[e]*(l[e]+delta_1[e]*(l_hat[node1(e)]+l_hat[node2(e)])) for e in 1:m))
 
     # Désactive le presolve (simplification automatique du modèle)
     # set_optimizer_attribute(slave_obj, "CPXPARAM_Preprocessing_Presolve", 0)
@@ -42,7 +44,7 @@ function slave_constraint(k::Int, w, W_global::Int, W, y_star, n::Int)
     @constraint(slave_cons, sum(delta_2[v] for v in 1:n) <= W_global)
     @constraint(slave_cons, [v in 1:n], delta_2[v] <= W[v])
 
-    @objective(slave_cons, Max, sum(y_star[k][v]*w[v]*(1+delta_2[v]) for v in 1:n))
+    @objective(slave_cons, Max, sum(y_star[k,v]*w[v]*(1+delta_2[v]) for v in 1:n))
 
     # Désactive le presolve (simplification automatique du modèle)
     # set_optimizer_attribute(slave_cons, "CPXPARAM_Preprocessing_Presolve", 0)
@@ -75,9 +77,9 @@ function master_pb(E, n::Int, m::Int, K::Int, w, W_global::Int, W, l, L::Int, l_
     @variable(master, y[k in 1:K, v in 1:n], Bin)
     @variable(master, t >= 0)
 
-    @constraint(master, [v in 1:n], sum(y[k][v] for k in 1:K) == 1)
-    @constraint(master, [e in 1:m, k in 1:K], sum(y[k][v]*A[v][e] for v in 1:n) - 1 <= z[k][e])
-    @constraint(master, [e in 1:m, k in 1:K], sum(y[k][v]*A[v][e] for v in 1:n) / 2 >= z[k][e])
+    @constraint(master, [v in 1:n], sum(y[k,v] for k in 1:K) == 1)
+    @constraint(master, [e in 1:m, k in 1:K], y[k][node1(e)] + y[k][node2(e)] - 1 <= z[k][e])
+    @constraint(master, [e in 1:m, k in 1:K], ((y[k][node1(e)] + y[k][node2(e)])) / 2 >= z[k][e])
     @constraint(master, [e in 1:m], x[e] == sum(z[k][e] for k in 1:K))
     # slave objective
     @constraint(master, [i in 1:length(U_1)], t >= sum(U_1[i][e]*x[e] for e in 1:m))
@@ -111,11 +113,12 @@ function master_pb(E, n::Int, m::Int, K::Int, w, W_global::Int, W, l, L::Int, l_
 end
 
 function solveByCuts(inputFile::String)
-    include(inputFile)          # contains G=(V,E), l[e], l_hat[v], L, w[v], W[v], W, K, B,
+    include(inputFile)          # contains n, coordinates, lh[v], L, w_v, W_v, W, K, B
     println("nb max de cluster : K = ", K)
     println("poids max d'un cluster : B = ", B)
-    n = length(V)
-    m = length(E)
+    m = n*n
+    l = generate_l(coordinates, n)
+
     U_1 = Vector{Vector{Float64}}()
     append!(U_1, [l[e] for e in 1:m])
     U_2 = Vector{Vector{Float64}}()
