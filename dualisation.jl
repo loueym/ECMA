@@ -36,7 +36,7 @@ function master_pb(inputFile::String)
     @constraint(master, [k in 1:K, v in 1:n], zeta[k] + gamma[k, v] >= w_v[v]*y[k, v])
     @constraint(master, [k in 1:K], W*zeta[k] + sum(W_v[v]*gamma[k, v] for v in 1:n) <= B - sum(w_v[v]*y[k, v] for v in 1:n))
 
-    @objective(master, Min, sum(x[e]*l[e] for e in 1:m) + L*alpha + 3*sum(beta[e] for e in 1:m))
+    @objective(master, Min, sum(x[e]*l[e]/2 for e in 1:m) + L*alpha + 3*sum(beta[e] for e in 1:m))
 
     # Désactive le presolve (simplification automatique du modèle)
     set_optimizer_attribute(master, "CPXPARAM_Preprocessing_Presolve", 0)
@@ -65,11 +65,14 @@ function master_pb(inputFile::String)
             end
         end
     end
-    xStar = [0 for i in 1:m]
+    xStar = [false for i in 1:m]
     for k in 1:K
         for v1 in res[k]
             for v2 in res[k]
-                xStar[(v1-1)*n + (v2-1)] = 1
+                xStar[(v1-1)*n + v2] = true
+            end
+        end
+    end
 
     return xStar, res, obj, computation_time
 end
@@ -117,15 +120,24 @@ function bugFinder(inputFile::String, x_star)
 
     @constraint(master, [e in 1:m], alpha + beta[e] >= x_star[e]*(lh[node1(e,n)]+lh[node2(e,n)]))
 
-    @objective(master, Min, sum(x_star[e]*l[e] for e in 1:m) + L*alpha + 3*sum(beta[e] for e in 1:m))
+    @objective(master, Min, sum(x_star[e]*l[e]/2 for e in 1:m) + L*alpha + 3*sum(beta[e] for e in 1:m))
+
+    # Désactive le presolve (simplification automatique du modèle)
+    set_optimizer_attribute(master, "CPXPARAM_Preprocessing_Presolve", 0)
+    # Désactive la génération de coupes automatiques
+    set_optimizer_attribute(master, "CPXPARAM_MIP_Limits_CutsFactor", 0)
+    # Désactive la génération de solutions entières à partir de solutions fractionnaires
+    set_optimizer_attribute(master, "CPXPARAM_MIP_Strategy_FPHeur", -1)
+    # Désactive les sorties de CPLEX (optionnel)
+    set_optimizer_attribute(master, "CPX_PARAM_SCRIND", 0)
 
     # start = time()
-    # optimize!(slave)
+    optimize!(master)
     # computation_time = time() - start
 
-    feasiblefound = primal_status(slave) == MOI.FEASIBLE_POINT
+    feasiblefound = primal_status(master) == MOI.FEASIBLE_POINT
     if feasiblefound
-        obj = JuMP.objective_value(slave)
+        obj = JuMP.objective_value(master)
         a = JuMP.value.(alpha)
         b = JuMP.value.(beta)
     end
@@ -136,4 +148,7 @@ end
 xStar, clustersTest, test, testCompTime = master_pb("data/10_ulysses_3.tsp")
 println("attained value: ", test)
 println("clusters: ", clustersTest)
-bugFinder("data/10_ulysses_3.tsp", xStar)
+alpha, beta, testObj = bugFinder("data/10_ulysses_3.tsp", xStar)
+println("alpha: ", alpha)
+println("beta: ", beta)
+println("value: ", testObj)
