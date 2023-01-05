@@ -8,10 +8,11 @@ function slave_objective(l, L::Int, lh, x_star, m::Int)
 
     @variable(slave_obj, delta_1[e in 1:m] >= 0)
 
+    @constraint(slave_obj, [i in 1:n], delta_1[getEdge(n, i, i)] == 0)
     @constraint(slave_obj, sum(delta_1[e] for e in 1:m) <= L)
     @constraint(slave_obj, [e in 1:m], delta_1[e] <= 3)
 
-    @objective(slave_obj, Max, sum(x_star[e]*(l[e]+delta_1[e]*(lh[node1(e, n)]+lh[node2(e, n)])) for e in 1:m))
+    @objective(slave_obj, Max, sum(x_star[e]*(1/2*l[e]+delta_1[e]*(lh[node1(e, n)]+lh[node2(e, n)])) for e in 1:m))
 
     # Désactive le presolve (simplification automatique du modèle)
     # set_optimizer_attribute(slave_obj, "CPXPARAM_Preprocessing_Presolve", 0)
@@ -120,7 +121,7 @@ function solveByCuts(inputFile::String)
     l = generate_l(coordinates, n)
 
     U_1 = Vector{Vector{Float64}}()
-    push!(U_1, [l[e] for e in 1:m])
+    push!(U_1, [l[e]/2 for e in 1:m])
     U_2 = Vector{Vector{Float64}}()
     push!(U_2, [w_v[v] for v in 1:n])
 
@@ -131,27 +132,11 @@ function solveByCuts(inputFile::String)
     t, x, y, lower_bound = master_pb(n, m, K, w_v, W, W_v, l, L, lh, B, U_1, U_2)
     delta1, obj_val = slave_objective(l, L, lh, x, m)
     if obj_val > t
-        new_constraint = [l[e]+delta1[e]*(lh[node1(e, n)]+lh[node2(e, n)]) for e in 1:m]
+        new_constraint = [1/2*l[e]+delta1[e]*(lh[node1(e, n)]+lh[node2(e, n)]) for e in 1:m]
         push!(U_1, new_constraint)
         continue_resolution = true
     end
-    delta2, cons_val = slave_constraint(k, w_v, W, W_v, y, n)
-    if cons_val > B
-        new_constraint = [w_v[v]*(1+delta2[v]) for v in 1:n]
-        push!(U_2, new_constraint)
-        continue_resolution = true
-    end
-
-    # iterations of the resolution
-    while continue_resolution
-        continue_resolution = false
-        t, x, y, lower_bound = master_pb(n, m, K, w_v, W, W_v, l, L, lh, B, U_1, U_2)
-        delta1, obj_val = slave_objective(l, L, lh, x, m)
-        if obj_val > t
-            new_constraint = [l[e]+delta1[e]*(lh[node1(e, n)]+lh[node2(e, n)]) for e in 1:m]
-            push!(U_1, new_constraint)
-            continue_resolution = true
-        end
+    for k in 1:K
         delta2, cons_val = slave_constraint(k, w_v, W, W_v, y, n)
         if cons_val > B
             new_constraint = [w_v[v]*(1+delta2[v]) for v in 1:n]
@@ -160,13 +145,126 @@ function solveByCuts(inputFile::String)
         end
     end
 
+    # iterations of the resolution
+    while continue_resolution
+        continue_resolution = false
+        t, x, y, lower_bound = master_pb(n, m, K, w_v, W, W_v, l, L, lh, B, U_1, U_2)
+        delta1, obj_val = slave_objective(l, L, lh, x, m)
+        if obj_val > t
+            new_constraint = [1/2*l[e]+delta1[e]*(lh[node1(e, n)]+lh[node2(e, n)]) for e in 1:m]
+            push!(U_1, new_constraint)
+            continue_resolution = true
+        end
+        for k in 1:K
+            delta2, cons_val = slave_constraint(k, w_v, W, W_v, y, n)
+            if cons_val > B
+                new_constraint = [w_v[v]*(1+delta2[v]) for v in 1:n]
+                push!(U_2, new_constraint)
+                continue_resolution = true
+            end
+        end
+    end
+
+
     computation_time = time() - start
 
     if t==lower_bound
-        print("found solution hitting lower bound")
+        println("found solution hitting lower bound")
     else
-        print("solution found because constraints not violated")
+        println("solution found because constraints not violated")
     end
 
-    return t, x, y, lower_bound, computation_time
+    
+    res = [[] for k in 1:K]
+    for k in 1:K
+        for v in 1:n
+            if y[k,v]==true
+                append!(res[k], v)
+            end
+        end
+    end
+
+    return res, t, lower_bound, computation_time
+end
+
+function master_pb_via_CPLEX(inputFile::String)
+    include(inputFile)          # contains n, coordinates, lh[v], L, w_v, W_v, W_v, K, B
+    println("nb max de cluster : K = ", K)
+    println("poids max d'un cluster : B = ", B)
+    m = n*n
+    l = generate_l(coordinates, n)
+
+    U_1 = [l[e]/2 for e in 1:m]
+    U_2 = [w_v[v] for v in 1:n]
+
+    start = time()
+
+    master = Model(CPLEX.Optimizer)
+
+    @variable(master, x[e in 1:m], Int)
+    @variable(master, z[k in 1:K, e in 1:m], Bin)
+    @variable(master, y[k in 1:K, v in 1:n], Bin)
+    @variable(master, t >= 0)
+
+    @constraint(master, [v in 1:n], sum(y[k, v] for k in 1:K) == 1)
+    @constraint(master, [e in 1:m, k in 1:K], y[k, node1(e, n)] + y[k, node2(e, n)] - 1 <= z[k, e])
+    @constraint(master, [e in 1:m, k in 1:K], ((y[k, node1(e, n)] + y[k, node2(e, n)])) / 2 >= z[k, e])
+    @constraint(master, [e in 1:m], x[e] == sum(z[k, e] for k in 1:K))
+    # slave objective
+    @constraint(master, t >= sum(U_1[e]*x[e] for e in 1:m))
+    # slave constraint
+    @constraint(master, [k in 1:K], sum(U_2[v]*y[k, v] for v in 1:n) <= B)
+
+    @objective(master, Min, t)
+
+    # start = time()
+    # computation_time = time() - start
+
+    continue_resolution = true
+    while continue_resolution
+        continue_resolution = false
+        
+        optimize!(master)
+        feasiblefound = primal_status(master) == MOI.FEASIBLE_POINT
+        if feasiblefound
+            t_star = JuMP.value.(t)
+            x_star = JuMP.value.(x)
+            y_star = JuMP.value.(y)
+            obj = JuMP.objective_value(master)
+
+            delta1, obj_val = slave_objective(l, L, lh, x_star, m)
+            if obj_val > t_star
+                new_constraint = [1/2*l[e]+delta1[e]*(lh[node1(e, n)]+lh[node2(e, n)]) for e in 1:m]
+                # Generate a cutting plane
+                #cut = sum(x[e]*new_constraint[e] for e in 1:m) - t <= 0
+
+                # Add the cutting plane to the model
+                @constraint(master, sum(x[e]*new_constraint[e] for e in 1:m) <= t)
+                #addcut(master, cut)
+                continue_resolution = true
+            end
+            for k in 1:K
+                delta2, cons_val = slave_constraint(k, w_v, W, W_v, y_star, n)
+                if cons_val > B
+                    new_constraint = [w_v[v]*(1+delta2[v]) for v in 1:n]
+                    # Generate a cutting plane
+                    #cut = sum(y[v]*new_constraint[v] for v in 1:n) <= B
+        
+                    # Add the cutting plane to the model
+                    
+                    @constraint(master, sum(y[v]*new_constraint[v] for v in 1:n) <= B)
+                    # addcut(master, cut)
+                    continue_resolution = true
+                end
+            end
+
+        end
+    end
+    
+    t_star = JuMP.value.(t)
+    x_star = JuMP.value.(x)
+    y_star = JuMP.value.(y)
+    obj = JuMP.objective_value(master)
+
+    return t_star, x_star, y_star, obj #, computation_time
 end
