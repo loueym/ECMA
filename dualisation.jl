@@ -77,6 +77,7 @@ function master_pb(inputFile::String)
     return xStar, res, obj, computation_time
 end
 
+# INUTILE (intégré dans le master_pb)
 function slave_pb(k::Int, n::Int, y, W::Int, W_v, w_v)
     slave = Model(CPLEX.Optimizer)
 
