@@ -1,6 +1,5 @@
 using JuMP
 using CPLEX
-using MathOptFormat
 
 include("common.jl")
 
@@ -22,7 +21,7 @@ function slave_objective(l, L::Int, lh, x_star, m::Int)
     # Désactive la génération de solutions entières à partir de solutions fractionnaires
     # set_optimizer_attribute(slave_obj, "CPXPARAM_MIP_Strategy_FPHeur", -1)
     # Désactive les sorties de CPLEX (optionnel)
-    # set_optimizer_attribute(slave_obj, "CPX_PARAM_SCRIND", 0)
+    set_optimizer_attribute(slave_obj, "CPX_PARAM_SCRIND", 0)
 
     # start = time()
     optimize!(slave_obj)
@@ -55,7 +54,7 @@ function slave_constraint(k::Int, w_v, W::Int, W_v, y_star, n::Int)
     # Désactive la génération de solutions entières à partir de solutions fractionnaires
     # set_optimizer_attribute(slave_cons, "CPXPARAM_MIP_Strategy_FPHeur", -1)
     # Désactive les sorties de CPLEX (optionnel)
-    # set_optimizer_attribute(slave_cons, "CPX_PARAM_SCRIND", 0)
+    set_optimizer_attribute(slave_cons, "CPX_PARAM_SCRIND", 0)
 
     # start = time()
     optimize!(slave_cons)
@@ -91,11 +90,11 @@ function master_pb(n::Int, m::Int, K::Int, w_v, W::Int, W_v, l, L::Int, lh, B::I
     @objective(master, Min, t)
 
     # Désactive le presolve (simplification automatique du modèle)
-    set_optimizer_attribute(master, "CPXPARAM_Preprocessing_Presolve", 0)
+    # set_optimizer_attribute(master, "CPXPARAM_Preprocessing_Presolve", 0)
     # Désactive la génération de coupes automatiques
-    set_optimizer_attribute(master, "CPXPARAM_MIP_Limits_CutsFactor", 0)
+    # set_optimizer_attribute(master, "CPXPARAM_MIP_Limits_CutsFactor", 0)
     # Désactive la génération de solutions entières à partir de solutions fractionnaires
-    set_optimizer_attribute(master, "CPXPARAM_MIP_Strategy_FPHeur", -1)
+    # set_optimizer_attribute(master, "CPXPARAM_MIP_Strategy_FPHeur", -1)
     # Désactive les sorties de CPLEX (optionnel)
     set_optimizer_attribute(master, "CPX_PARAM_SCRIND", 0)
 
@@ -175,7 +174,7 @@ function solveByCuts(inputFile::String)
         println("solution found because constraints not violated")
     end
 
-    
+
     res = [[] for k in 1:K]
     for k in 1:K
         for v in 1:n
@@ -217,6 +216,13 @@ function master_pb_via_CPLEX(inputFile::String)
 
     @objective(master, Min, t)
 
+    # Désactive le presolve (simplification automatique du modèle)
+    set_optimizer_attribute(master, "CPXPARAM_Preprocessing_Presolve", 0)
+    # Désactive la génération de coupes automatiques
+    set_optimizer_attribute(master, "CPXPARAM_MIP_Limits_CutsFactor", 0)
+    # Désactive les sorties de CPLEX (optionnel)
+    set_optimizer_attribute(master, "CPX_PARAM_SCRIND", 0)
+
     callback_called = false
     function callback_function(cb_data::CPLEX.CallbackContext)
         callback_called = true
@@ -233,6 +239,7 @@ function master_pb_via_CPLEX(inputFile::String)
             println(" !!!!!!!!!!!!!!! adding objective constraint")
             new_constraint = [l[e]+delta1[e]*(lh[node1(e, n)]+lh[node2(e, n)]) for e in 1:m]
             cut = @build_constraint(sum(x[e]*new_constraint[e] for e in 1:m) <= t)
+            # print("NEW CONSTRAINT : ", cut)
             MOI.submit(master, MOI.UserCut(cb_data), cut)
         end
 
@@ -241,6 +248,7 @@ function master_pb_via_CPLEX(inputFile::String)
             if cons_val > B
                 println(" !!!!!!!!!!!!!!! adding constraint in k = ", k)
                 cut = @build_constraint(sum(y[v]*w_v[v]*(1+delta2[v]) for v in 1:n) <= B)
+                # print("NEW CONSTRAINT : ", cut)
                 MOI.submit(master, MOI.UserCut(cb_data), cut)
             end
         end
@@ -248,12 +256,18 @@ function master_pb_via_CPLEX(inputFile::String)
     end
 
     MOI.set(master, MOI.UserCutCallback(), callback_function)
+
+    start = time()
     optimize!(master)
+    computation_time = time() - start
+
     @show callback_called
     println()
-    
+    # print(master)
+
     feasible_found = primal_status(master) == MOI.FEASIBLE_POINT
     if !feasible_found
+        println("No feasible point found !")
         return
     end
 
@@ -261,11 +275,6 @@ function master_pb_via_CPLEX(inputFile::String)
     x_star = JuMP.value.(x)
     y_star = JuMP.value.(y)
     obj = JuMP.objective_value(master)
-
-    
-    lp_file = MathOptFormat.LP.Model()
-    MOI.copy_to(lp_file, backend(master))
-    MOI.write_to_file(lp_file, "my_model.lp")
 
     res = [[] for k in 1:K]
     for k in 1:K
@@ -276,8 +285,11 @@ function master_pb_via_CPLEX(inputFile::String)
         end
     end
 
-    return res, t_star
+    return res, t_star, obj, computation_time
 end
 
 inputFile = "data/10_ulysses_3.tsp"
-master_pb_via_CPLEX(inputFile)
+clusters, t_star, value, computation_time = master_pb_via_CPLEX(inputFile)
+println("clusters : ", clusters)
+println("value : ", value)
+println("computation time : ", computation_time)
