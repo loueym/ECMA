@@ -1,5 +1,6 @@
 using JuMP
 using CPLEX
+using MathOptFormat
 
 include("common.jl")
 
@@ -187,6 +188,7 @@ function solveByCuts(inputFile::String)
     return res, t, lower_bound, computation_time
 end
 
+
 function master_pb_via_CPLEX(inputFile::String)
     include(inputFile)          # contains n, coordinates, lh[v], L, w_v, W_v, W_v, K, B
     println("nb max de cluster : K = ", K)
@@ -194,10 +196,8 @@ function master_pb_via_CPLEX(inputFile::String)
     m = n*n
     l = generate_l(coordinates, n)
 
-    U_1 = [l[e]/2 for e in 1:m]
+    U_1 = [l[e] for e in 1:m]
     U_2 = [w_v[v] for v in 1:n]
-
-    start = time()
 
     master = Model(CPLEX.Optimizer)
 
@@ -217,54 +217,67 @@ function master_pb_via_CPLEX(inputFile::String)
 
     @objective(master, Min, t)
 
-    # start = time()
-    # computation_time = time() - start
+    callback_called = false
+    function callback_function(cb_data::CPLEX.CallbackContext)
+        callback_called = true
+        # println("USING THE CALLBACK FUNCTION YEAY")
+        # add in arguments context_id::Clong ?
+        # CPLEX.load_callback_variable_primal(cb_data, context_id)
 
-    continue_resolution = true
-    while continue_resolution
-        continue_resolution = false
-        
-        optimize!(master)
-        feasiblefound = primal_status(master) == MOI.FEASIBLE_POINT
-        if feasiblefound
-            t_star = JuMP.value.(t)
-            x_star = JuMP.value.(x)
-            y_star = JuMP.value.(y)
-            obj = JuMP.objective_value(master)
+        t_star = callback_value.(Ref(cb_data), t)
+        x_star = callback_value.(Ref(cb_data), x)
+        y_star = callback_value.(Ref(cb_data), y)
 
-            delta1, obj_val = slave_objective(l, L, lh, x_star, m)
-            if obj_val > t_star
-                new_constraint = [1/2*l[e]+delta1[e]*(lh[node1(e, n)]+lh[node2(e, n)]) for e in 1:m]
-                # Generate a cutting plane
-                #cut = sum(x[e]*new_constraint[e] for e in 1:m) - t <= 0
-
-                # Add the cutting plane to the model
-                @constraint(master, sum(x[e]*new_constraint[e] for e in 1:m) <= t)
-                #addcut(master, cut)
-                continue_resolution = true
-            end
-            for k in 1:K
-                delta2, cons_val = slave_constraint(k, w_v, W, W_v, y_star, n)
-                if cons_val > B
-                    new_constraint = [w_v[v]*(1+delta2[v]) for v in 1:n]
-                    # Generate a cutting plane
-                    #cut = sum(y[v]*new_constraint[v] for v in 1:n) <= B
-        
-                    # Add the cutting plane to the model
-                    
-                    @constraint(master, sum(y[v]*new_constraint[v] for v in 1:n) <= B)
-                    # addcut(master, cut)
-                    continue_resolution = true
-                end
-            end
-
+        delta1, obj_val = slave_objective(l, L, lh, x_star, m)
+        if obj_val > t_star
+            println(" !!!!!!!!!!!!!!! adding objective constraint")
+            new_constraint = [l[e]+delta1[e]*(lh[node1(e, n)]+lh[node2(e, n)]) for e in 1:m]
+            cut = @build_constraint(sum(x[e]*new_constraint[e] for e in 1:m) <= t)
+            MOI.submit(master, MOI.UserCut(cb_data), cut)
         end
+
+        for k in 1:K
+            delta2, cons_val = slave_constraint(k, w_v, W, W_v, y_star, n)
+            if cons_val > B
+                println(" !!!!!!!!!!!!!!! adding constraint in k = ", k)
+                cut = @build_constraint(sum(y[v]*w_v[v]*(1+delta2[v]) for v in 1:n) <= B)
+                MOI.submit(master, MOI.UserCut(cb_data), cut)
+            end
+        end
+
     end
+
+    MOI.set(master, MOI.UserCutCallback(), callback_function)
+    optimize!(master)
+    @show callback_called
+    println()
     
+    feasible_found = primal_status(master) == MOI.FEASIBLE_POINT
+    if !feasible_found
+        return
+    end
+
     t_star = JuMP.value.(t)
     x_star = JuMP.value.(x)
     y_star = JuMP.value.(y)
     obj = JuMP.objective_value(master)
 
-    return t_star, x_star, y_star, obj #, computation_time
+    
+    lp_file = MathOptFormat.LP.Model()
+    MOI.copy_to(lp_file, backend(master))
+    MOI.write_to_file(lp_file, "my_model.lp")
+
+    res = [[] for k in 1:K]
+    for k in 1:K
+        for v in 1:n
+            if y_star[k,v]==true
+                append!(res[k], v)
+            end
+        end
+    end
+
+    return res, t_star
 end
+
+inputFile = "data/10_ulysses_3.tsp"
+master_pb_via_CPLEX(inputFile)
