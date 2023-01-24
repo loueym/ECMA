@@ -30,7 +30,7 @@ function master_pb_via_CPLEX(inputFile::String)
     m = n*n
     l = generate_l(coordinates, n)
 
-    U_1 = [l[e] for e in 1:m]
+    U_1 = [1/2*l[e] for e in 1:m]
     U_2 = [w_v[v] for v in 1:n]
 
     master = Model(CPLEX.Optimizer)
@@ -69,15 +69,16 @@ function master_pb_via_CPLEX(inputFile::String)
             # add in arguments context_id::Clong ?
             CPLEX.load_callback_variable_primal(cb_data, context_id)
 
-            # x_star = callback_value(cb_data, x)
-            # t_star = callback_value(cb_data, t)
-            # y_star = callback_value(cb_data, y)
-            t_star = callback_value.(Ref(cb_data), t)
-            x_star = callback_value.(Ref(cb_data), x)
-            y_star = callback_value.(Ref(cb_data), y)
+            x_star = callback_value.(cb_data, x)
+            t_star = callback_value.(cb_data, t)
+            y_star = callback_value.(cb_data, y)
+
+            # t_star = callback_value.(Ref(cb_data), t)
+            # x_star = callback_value.(Ref(cb_data), x)
+            # y_star = callback_value.(Ref(cb_data), y)
 
             delta1, obj_val = slave_objective(l, L, lh, x_star, m)
-            if obj_val > t_star - 1e-5
+            if obj_val > t_star # - 1e-5
                 println(" !!!!!!!!!!!!!!! adding objective constraint because obj value is ", obj_val, " and t is ", t_star)
                 sleep(0.1)
                 new_constraint = [1/2*l[e]+delta1[e]*(lh[node1(e, n)]+lh[node2(e, n)]) for e in 1:m]
@@ -88,10 +89,10 @@ function master_pb_via_CPLEX(inputFile::String)
 
             for k in 1:K
                 delta2, cons_val = slave_constraint(k, w_v, W, W_v, y_star, n)
-                if cons_val > B - 1e-5
+                if cons_val > B # - 1e-5
                     println(" !!!!!!!!!!!!!!! adding constraint in k = ", k, " because constraint_value is ", cons_val, " and b is ", B)
                     sleep(0.1)
-                    cut = @build_constraint(sum(y[v]*w_v[v]*(1+delta2[v]) for v in 1:n) <= B)
+                    cut = @build_constraint(sum(y[k, v]*w_v[v]*(1+delta2[v]) for v in 1:n) <= B)
                     # print("NEW CONSTRAINT : ", cut)
                     MOI.submit(master, MOI.LazyConstraint(cb_data), cut)
                 end
