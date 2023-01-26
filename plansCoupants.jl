@@ -44,7 +44,7 @@ function master_pb(n::Int, m::Int, K::Int, w_v, W::Int, W_v, l, L::Int, lh, B::I
     return t_star, x_star, y_star, obj #, computation_time
 end
 
-function solveByCuts(inputFile::String)
+function solveByCuts(inputFile::String, timeLimit::Int64)
     include(inputFile)          # contains n, coordinates, lh[v], L, w_v, W_v, W_v, K, B
     println("nb max de cluster : K = ", K)
     println("poids max d'un cluster : B = ", B)
@@ -60,7 +60,9 @@ function solveByCuts(inputFile::String)
 
     # first solution
     continue_resolution = false
+    println("FIRST MASTER")
     t, x, y, lower_bound = master_pb(n, m, K, w_v, W, W_v, l, L, lh, B, U_1, U_2)
+    println("FIRST SLAVE")
     delta1, obj_val = slave_objective(l, L, lh, x, m)
     if obj_val > t
         new_constraint = [1/2*l[e]+delta1[e]*(lh[node1(e, n)]+lh[node2(e, n)]) for e in 1:m]
@@ -77,7 +79,8 @@ function solveByCuts(inputFile::String)
     end
 
     # iterations of the resolution
-    while continue_resolution
+    while continue_resolution && time()-start<timeLimit
+        println("TIME: ", time()-start)
         continue_resolution = false
         t, x, y, lower_bound = master_pb(n, m, K, w_v, W, W_v, l, L, lh, B, U_1, U_2)
         delta1, obj_val = slave_objective(l, L, lh, x, m)
@@ -99,12 +102,18 @@ function solveByCuts(inputFile::String)
 
     computation_time = time() - start
 
-    if t==lower_bound
-        println("found solution hitting lower bound")
+    if continue_resolution
+        println("time limit reached")
+        status = "time limit"
     else
-        println("solution found because constraints not violated")
+        if t==lower_bound
+            println("found solution hitting lower bound")
+            status = "lower bound"
+        else
+            println("solution found because constraints not violated")
+            status = "valid solution"
+        end
     end
-
 
     res = [[] for k in 1:K]
     for k in 1:K
@@ -115,12 +124,12 @@ function solveByCuts(inputFile::String)
         end
     end
 
-    return res, t, lower_bound, computation_time
+    return res, t, lower_bound, computation_time, status
 end
 
 
-inputFile = "data/10_ulysses_3.tsp"
-res, t, lower_bound, computation_time = solveByCuts(inputFile)
-println("clusters : ", res)
-println("value : ", t)
-println("computation time : ", computation_time)
+# inputFile = "data/10_ulysses_3.tsp"
+# res, t, lower_bound, computation_time = solveByCuts(inputFile)
+# println("clusters : ", res)
+# println("value : ", t)
+# println("computation time : ", computation_time)

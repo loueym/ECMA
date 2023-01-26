@@ -23,15 +23,12 @@ function isIntegerPoint(cb_data::CPLEX.CallbackContext, context_id::Clong)
     end
 end
 
-function master_pb_via_CPLEX(inputFile::String)
+function solveByBnC(inputFile::String, timeLimit::Int64)
     include(inputFile)          # contains n, coordinates, lh[v], L, w_v, W_v, W_v, K, B
     println("nb max de cluster : K = ", K)
     println("poids max d'un cluster : B = ", B)
     m = n*n
     l = generate_l(coordinates, n)
-
-    U_1 = [1/2*l[e] for e in 1:m]
-    U_2 = [w_v[v] for v in 1:n]
 
     master = Model(CPLEX.Optimizer)
     MOI.set(master, MOI.NumberOfThreads(), 1)
@@ -46,20 +43,21 @@ function master_pb_via_CPLEX(inputFile::String)
     @constraint(master, [e in 1:m, k in 1:K], ((y[k, node1(e, n)] + y[k, node2(e, n)])) / 2 >= z[k, e])
     @constraint(master, [e in 1:m], x[e] == sum(z[k, e] for k in 1:K))
     # slave objective
-    @constraint(master, t >= sum(U_1[e]*x[e] for e in 1:m))
+    @constraint(master, t >= sum(1/2*l[e]*x[e] for e in 1:m))
     # slave constraint
-    @constraint(master, [k in 1:K], sum(U_2[v]*y[k, v] for v in 1:n) <= B)
+    @constraint(master, [k in 1:K], sum(w_v[v]*y[k, v] for v in 1:n) <= B)
 
     @objective(master, Min, t)
 
     # Désactive le presolve (simplification automatique du modèle)
-    set_optimizer_attribute(master, "CPXPARAM_Preprocessing_Presolve", 0)
+    # set_optimizer_attribute(master, "CPXPARAM_Preprocessing_Presolve", 0)
     # Désactive la génération de coupes automatiques
-    set_optimizer_attribute(master, "CPXPARAM_MIP_Limits_CutsFactor", 0)
+    # set_optimizer_attribute(master, "CPXPARAM_MIP_Limits_CutsFactor", 0)
     # Désactive la génération de solutions entières à partir de solutions fractionnaires
-    set_optimizer_attribute(master, "CPXPARAM_MIP_Strategy_FPHeur", -1)
+    # set_optimizer_attribute(master, "CPXPARAM_MIP_Strategy_FPHeur", -1)
     # Désactive les sorties de CPLEX (optionnel)
     set_optimizer_attribute(master, "CPX_PARAM_SCRIND", 0)
+    set_time_limit_sec(master, timeLimit)
 
     callback_called = false
     function callback_function(cb_data::CPLEX.CallbackContext, context_id::Clong)
@@ -79,8 +77,8 @@ function master_pb_via_CPLEX(inputFile::String)
 
             delta1, obj_val = slave_objective(l, L, lh, x_star, m)
             if obj_val > t_star # - 1e-5
-                println(" !!!!!!!!!!!!!!! adding objective constraint because obj value is ", obj_val, " and t is ", t_star)
-                sleep(0.1)
+                #println(" !!!!!!!!!!!!!!! adding objective constraint because obj value is ", obj_val, " and t is ", t_star)
+                #sleep(0.1)
                 new_constraint = [1/2*l[e]+delta1[e]*(lh[node1(e, n)]+lh[node2(e, n)]) for e in 1:m]
                 cut = @build_constraint(sum(x[e]*new_constraint[e] for e in 1:m) <= t)
                 # print("NEW CONSTRAINT : ", cut)
@@ -90,8 +88,8 @@ function master_pb_via_CPLEX(inputFile::String)
             for k in 1:K
                 delta2, cons_val = slave_constraint(k, w_v, W, W_v, y_star, n)
                 if cons_val > B # - 1e-5
-                    println(" !!!!!!!!!!!!!!! adding constraint in k = ", k, " because constraint_value is ", cons_val, " and b is ", B)
-                    sleep(0.1)
+                    #println(" !!!!!!!!!!!!!!! adding constraint in k = ", k, " because constraint_value is ", cons_val, " and b is ", B)
+                    #sleep(0.1)
                     cut = @build_constraint(sum(y[k, v]*w_v[v]*(1+delta2[v]) for v in 1:n) <= B)
                     # print("NEW CONSTRAINT : ", cut)
                     MOI.submit(master, MOI.LazyConstraint(cb_data), cut)
@@ -114,7 +112,7 @@ function master_pb_via_CPLEX(inputFile::String)
     feasible_found = primal_status(master) == MOI.FEASIBLE_POINT
     if !feasible_found
         println("No feasible point found !")
-        return
+        return [], [], 0, computation_time, "time limit"
     end
 
     t_star = JuMP.value.(t)
@@ -135,12 +133,13 @@ function master_pb_via_CPLEX(inputFile::String)
         end
     end
 
-    return res, t_star, obj, computation_time
+    return res, t_star, obj, computation_time, "solved"
 end
 
 
-inputFile = "data/10_ulysses_3.tsp"
-clusters, t_star, value, computation_time = master_pb_via_CPLEX(inputFile)
-println("clusters : ", clusters)
-println("value : ", value)
-println("computation time : ", computation_time)
+# inputFile = "data/38_rat_6.tsp"
+# clusters, t_star, value, computation_time, status = solveByBnC(inputFile, 30)
+# println("status: ", status)
+# println("clusters : ", clusters)
+# println("value : ", value)
+# println("computation time : ", computation_time)

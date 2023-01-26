@@ -1,5 +1,6 @@
 include("dualisation.jl")
-include("coupes.jl")
+include("plansCoupants.jl")
+include("branchAndCut.jl")
 
 using CSV, DataFrames
 
@@ -23,6 +24,28 @@ function benchmarkDualisation()
     CSV.write("benchmarkDualisation.csv", df, delim=";")
 end
 
+function benchmarkBnC(timeLimit::Int64)
+    # cd("./data/")
+    files = readdir("./data")
+    statuses = []
+    times = []
+    values = []
+    solutions = []
+    for file in files
+        println("Processing " * file)
+        clusters, t_star, value, compTime, status = solveByBnC("data/" * file, timeLimit)
+        push!(statuses, status)
+        push!(times, compTime)
+        push!(values, value)
+        push!(solutions, clusters)
+    end
+    df = DataFrame(File = files,
+                   Time = times,
+                   Values = values,
+                   Solutions = solutions)
+    CSV.write("benchmarkBnC.csv", df, delim=";")
+end
+
 function benchmarkCoupes(timeLimit::Int64)
     # cd("./data/")
     files = readdir("./data_cuts")
@@ -44,5 +67,3 @@ function benchmarkCoupes(timeLimit::Int64)
                    Solutions = solutions)
     CSV.write("benchmarkCoupes.csv", df, delim=";")
 end
-
-# benchmarkDualisation()
