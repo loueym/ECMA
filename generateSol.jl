@@ -3,7 +3,7 @@ using CPLEX
 
 include("common.jl")
 
-function paritionValue(partition, n, m, l, lh, L)
+function partitionValue(partition, n, m, l, lh, L)
     solVal = Model(CPLEX.Optimizer)
     @variable(solVal, delta1[e in 1:m] >= 0)
 
@@ -39,7 +39,7 @@ function clusterValue(k, partition, n, m, w_v, W_v, W)
     return clusterVal
 end
 
-function genSol(n, m, K, B, L, l, lh, w_v, W_v, W)
+function genRandomSol(n, m, K, B, L, l, lh, w_v, W_v, W)
     sol = [[false for i in 1:n] for k in 1:K]
     nodes = [i for i in 1:n]
     for k in 1:K
@@ -47,23 +47,26 @@ function genSol(n, m, K, B, L, l, lh, w_v, W_v, W)
         sol[k][nodes[idx]] = true
         deleteat!(nodes, idx)
     end
-    while length(nodes)>0
+    iter = 0
+    while length(nodes)>0 && iter < n+2*K
         # picking a cluster to extend
-        cluster = rand(1:K)
-        clusterValue = 0
+        clusterIdx = rand(1:K)
         # a node to add
         idx = rand(1:length(nodes))
-        sol[cluster][nodes[idx]] = true
+        sol[clusterIdx][nodes[idx]] = true
         # testing the value of the cluster
-        clusterVal = clusterValue(cluster, sol, n, m, w_v, W_v, W)
+        clusterVal = clusterValue(clusterIdx, sol, n, m, w_v, W_v, W)
         if clusterVal <= B
             deleteat!(nodes, idx)
         else
-            sol[cluster][nodes[idx]] = false
+            sol[clusterIdx][nodes[idx]] = false
         end
+        iter += 1
     end
     return sol
 end
+
+
 
 function heuristic(inputFile::String)
     include(inputFile)          # contains n, coordinates, lh[v], L, w_v, W_v, W, K, B,
@@ -72,8 +75,8 @@ function heuristic(inputFile::String)
     m = n*n
     l = generate_l(coordinates, n)
 
-    sol = genSol(n, m, K, B, L, l[1], lh[1], w_v[1], W_v[1], W)
+    # does not always generate a full solution
+    sol = genRandomSol(n, m, K, B, L, l, lh, w_v, W_v, W)
+
     println("generated sol : ", sol)
 end
-
-heuristic("data/10_ulysses_3.tsp")
