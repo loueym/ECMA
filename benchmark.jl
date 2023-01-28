@@ -4,7 +4,7 @@ include("branchAndCut.jl")
 
 using CSV, DataFrames
 
-function benchmarkDualisation()
+function benchmarkDualisation(timeLimit::Int)
     # cd("./data/")
     files = readdir("./data_bnc")
     gaps = []
@@ -13,7 +13,7 @@ function benchmarkDualisation()
     solutions = []
     for file in files
         println("Processing " * file)
-        xStar, clusters, value, compTime, gap = solveByDualisation("data_bnc/" * file)
+        xStar, clusters, value, compTime, gap = solveByDualisation("data_bnc/" * file, timeLimit)
         push!(gaps, gap)
         push!(times, compTime)
         push!(values, value)

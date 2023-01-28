@@ -113,7 +113,7 @@ function slave_pb(k::Int, n::Int, y, W::Int, W_v, w_v)
     return obj# , computation_time
 end
 
-# xStar, clustersTest, test, testCompTime = solveByDualisation("data/14_burma_3.tsp")
+# xStar, clustersTest, test, testCompTime = solveByDualisation("data/14_burma_3.tsp", 60)
 # println("attained value: ", test)
 # println("time needed: ", testCompTime)
 # println("clusters: ", clustersTest)
