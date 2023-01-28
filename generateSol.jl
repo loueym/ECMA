@@ -2,8 +2,15 @@ using JuMP
 using CPLEX
 
 include("common.jl")
+include("neighborhood.jl")
 
-function partitionValue(partition, n, m, l, lh, L)
+function xFromPartition(vectorPartition, n, m)
+    return [(vectorPartition[node1(e, n)] == vectorPartition[node2(e, n)]) for e in 1:m]
+end
+
+function partitionValue(vectorPartition, n, m, l, lh, L)
+    x = xFromPartition(vectorPartition, n, m)
+
     solVal = Model(CPLEX.Optimizer)
     @variable(solVal, delta1[e in 1:m] >= 0)
 
@@ -33,10 +40,11 @@ function clusterValue(k, partition, n, m, w_v, W_v, W)
 
     feasiblefound = primal_status(clusVal) == MOI.FEASIBLE_POINT
     if feasiblefound
+        delta2Star = JuMP.value.(delta2)
         clusterVal = JuMP.objective_value(clusVal)
     end
 
-    return clusterVal
+    return clusterVal, delta2Star
 end
 
 function genRandomSol(n, m, K, B, L, l, lh, w_v, W_v, W)
@@ -48,27 +56,60 @@ function genRandomSol(n, m, K, B, L, l, lh, w_v, W_v, W)
         deleteat!(nodes, idx)
     end
     iter = 0
+    delta2Star = nothing
     while length(nodes)>0 && iter < n+2*K
         # picking a cluster to extend
         clusterIdx = rand(1:K)
-        # a node to add
+        # taking a random node and trying to add it to the cluster
         idx = rand(1:length(nodes))
         sol[clusterIdx][nodes[idx]] = true
         # testing the value of the cluster
-        clusterVal = clusterValue(clusterIdx, sol, n, m, w_v, W_v, W)
+        clusterVal, delta2Star = clusterValue(clusterIdx, sol, n, m, w_v, W_v, W)
         if clusterVal <= B
             deleteat!(nodes, idx)
         else
-            sol[clusterIdx][nodes[idx]] = false
+            sol[clusterIdx][nodes[idx]] = false 
         end
         iter += 1
     end
-    return sol
+    return sol, delta2Star
+end
+
+function couplesWithSameW2(w_v2)
+    n = length(w_v2)
+    couples = []
+    for d in Set(w_v2)
+        indices = findall(x->x==d, w_v2)
+        m = length(indices)
+        indexInVector = 1
+        for i in indices
+            for j in indices[indexInVector+1:m]
+                push!(couples, (i, j))
+            end
+            indexInVector += 1
+        end
+    end
+    return couples
+end
+
+function transformSol(sol)
+    # Input: sol is a vector of vectors : sol[k][i] tells if node i is in cluster k
+    # Output: vectorSol is a vector : vectorSol[i] tells in which cluster is node i
+    K = length(sol)
+    n = length(sol[1])
+    vectorSol = [0 for i in 1:n]
+    for k in 1:K
+        for i in 1:n
+            if sol[k][i]
+                vectorSol[i] = k
+            end
+        end
+    end
+    return vectorSol
 end
 
 
-
-function heuristic(inputFile::String)
+function heuristic(inputFile::String, timeLimit::Int64)
     include(inputFile)          # contains n, coordinates, lh[v], L, w_v, W_v, W, K, B,
     println("nb max de cluster : K = ", K)
     println("poids max d'un cluster : B = ", B)
@@ -76,7 +117,31 @@ function heuristic(inputFile::String)
     l = generate_l(coordinates, n)
 
     # does not always generate a full solution
-    sol = genRandomSol(n, m, K, B, L, l, lh, w_v, W_v, W)
+    sol, delta2 = genRandomSol(n, m, K, B, L, l, lh, w_v, W_v, W)
+    vectorSol = transformSol(sol)
+    val = partitionValue(vectorSol, n, m, l, lh, L)
+    println("First solution value: ", val)
 
-    println("generated sol : ", sol)
+    w_v2 = w_v .* (delta2 .+ 1)
+
+    # generating a list of tuples of nodes with same w_v^2
+    couples = couplesWithSameW2(w_v2)
+
+    start = time()
+    computationTime = time() - start
+    while computationTime < timeLimit
+        # we try to switch two nodes (which are not currently in the same cluster)
+        vectorSol2 = switchTwoNodes(vectorSol, couples)
+        val2 = partitionValue(vectorSol2, n, m, l, lh, L)
+        if val2 < val
+            val = val2
+            vectorSol = vectorSol2
+            println("After ", computationTime, " seconds, found a better solution with value ", val)
+        end
+        
+        computationTime = time() - start
+    end
+
+    println("generated sol : ", vectorSol)
+    return vectorSol
 end
