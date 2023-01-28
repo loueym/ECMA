@@ -6,13 +6,15 @@ using CSV, DataFrames
 
 function benchmarkDualisation()
     # cd("./data/")
-    files = readdir("./data_dual")
+    files = readdir("./data_bnc")
+    gaps = []
     times = []
     values = []
     solutions = []
     for file in files
         println("Processing " * file)
-        xStar, clusters, value, compTime = master_pb("data_dual/" * file)
+        xStar, clusters, value, compTime, gap = solveByDualisation("data_bnc/" * file)
+        push!(gaps, gap)
         push!(times, compTime)
         push!(values, value)
         push!(solutions, clusters)
@@ -20,21 +22,24 @@ function benchmarkDualisation()
     df = DataFrame(File = files,
                    Time = times,
                    Values = values,
+                   Gaps = gaps,
                    Solutions = solutions)
-    CSV.write("benchmarkDualisation.csv", df, delim=";")
+    CSV.write("benchmarkDualisation.csv", df, delim=";", append=true)
 end
 
 function benchmarkBnC(timeLimit::Int64)
     # cd("./data/")
-    files = readdir("./data")
+    files = readdir("./data_bnc")
     statuses = []
+    gaps = []
     times = []
     values = []
     solutions = []
     for file in files
         println("Processing " * file)
-        clusters, t_star, value, compTime, status = solveByBnC("data/" * file, timeLimit)
+        clusters, t_star, value, compTime, gap, status = solveByBnC("data_bnc/" * file, timeLimit)
         push!(statuses, status)
+        push!(gaps, gap)
         push!(times, compTime)
         push!(values, value)
         push!(solutions, clusters)
@@ -42,8 +47,9 @@ function benchmarkBnC(timeLimit::Int64)
     df = DataFrame(File = files,
                    Time = times,
                    Values = values,
+                   Gaps = gaps,
                    Solutions = solutions)
-    CSV.write("benchmarkBnC.csv", df, delim=";")
+    CSV.write("benchmarkBnC.csv", df, delim=";", append=true)
 end
 
 function benchmarkCoupes(timeLimit::Int64)

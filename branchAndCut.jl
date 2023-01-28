@@ -106,13 +106,15 @@ function solveByBnC(inputFile::String, timeLimit::Int64)
     computation_time = time() - start
 
     @show callback_called
-    println()
     # print(master)
+    gap = 1 - MOI.get(master, MOI.RelativeGap())
+    println("gap info ", gap)
+    println()
 
     feasible_found = primal_status(master) == MOI.FEASIBLE_POINT
     if !feasible_found
         println("No feasible point found !")
-        return [], [], 0, computation_time, "time limit"
+        return [], [], 0, computation_time, 1, "time limit"
     end
 
     t_star = JuMP.value.(t)
@@ -133,12 +135,12 @@ function solveByBnC(inputFile::String, timeLimit::Int64)
         end
     end
 
-    return res, t_star, obj, computation_time, "solved"
+    return res, t_star, obj, computation_time, gap, "solved"
 end
 
 
 # inputFile = "data/38_rat_6.tsp"
-# clusters, t_star, value, computation_time, status = solveByBnC(inputFile, 30)
+# clusters, t_star, value, computation_time, gap, status = solveByBnC(inputFile, 30)
 # println("status: ", status)
 # println("clusters : ", clusters)
 # println("value : ", value)

@@ -3,7 +3,7 @@ using CPLEX
 
 include("common.jl")
 
-function master_pb(inputFile::String)
+function solveByDualisation(inputFile::String, timeLimit::Int)
     include(inputFile)          # contains n, coordinates, lh[v], L, w_v, W_v, W, K, B,
     println("nb max de cluster : K = ", K)
     println("poids max d'un cluster : B = ", B)
@@ -46,10 +46,14 @@ function master_pb(inputFile::String)
     # set_optimizer_attribute(master, "CPXPARAM_MIP_Strategy_FPHeur", -1)
     # Désactive les sorties de CPLEX (optionnel)
     # set_optimizer_attribute(master, "CPX_PARAM_SCRIND", 0)
+    set_time_limit_sec(master, timeLimit)
 
     start = time()
     optimize!(master)
     computation_time = time() - start
+    gap = 1 - MOI.get(master, MOI.RelativeGap())
+    println("gap info ", gap)
+    println()
 
     feasiblefound = primal_status(master) == MOI.FEASIBLE_POINT
     if feasiblefound
@@ -74,10 +78,10 @@ function master_pb(inputFile::String)
         end
     end
 
-    return xStar, res, obj, computation_time
+    return xStar, res, obj, computation_time, gap
 end
 
-# INUTILE (intégré dans le master_pb)
+# INUTILE (intégré dans le solveByDualisation)
 function slave_pb(k::Int, n::Int, y, W::Int, W_v, w_v)
     slave = Model(CPLEX.Optimizer)
 
@@ -109,7 +113,7 @@ function slave_pb(k::Int, n::Int, y, W::Int, W_v, w_v)
     return obj# , computation_time
 end
 
-# xStar, clustersTest, test, testCompTime = master_pb("data/14_burma_3.tsp")
+# xStar, clustersTest, test, testCompTime = solveByDualisation("data/14_burma_3.tsp")
 # println("attained value: ", test)
 # println("time needed: ", testCompTime)
 # println("clusters: ", clustersTest)
