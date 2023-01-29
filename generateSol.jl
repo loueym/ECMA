@@ -4,11 +4,13 @@ using CPLEX
 include("common.jl")
 include("neighborhood.jl")
 
-function xFromPartition(vectorPartition, n, m)
-    return [(vectorPartition[node1(e, n)] == vectorPartition[node2(e, n)]) for e in 1:m]
+function xFromPartition(vectorPartition, n::Int64, m::Int64)::Vector{Bool}
+    # returns a vector of bools with true if the edge is in a cluster
+    return Vector([(vectorPartition[node1(e, n)] == vectorPartition[node2(e, n)]) for e in 1:m])
 end
 
-function partitionValue(vectorPartition, n, m, l, lh, L)
+function partitionValue(vectorPartition, n::Int64, m::Int64, l, lh, L::Int64)::Float64
+    # returns the value of the given partition
     x = xFromPartition(vectorPartition, n, m)
 
     solVal = Model(CPLEX.Optimizer)
@@ -28,7 +30,8 @@ function partitionValue(vectorPartition, n, m, l, lh, L)
     return value
 end
 
-function clusterValue(k, partition, n, m, w_v, W_v, W)
+function clusterValue(k::Int64, partition, n::Int64, m::Int64, w_v, W_v, W::Int64)
+    # rerturns the value of cluster k in the given partition
     clusVal = Model(CPLEX.Optimizer)
     @variable(clusVal, delta2[v in 1:n] >= 0)
 
@@ -47,7 +50,8 @@ function clusterValue(k, partition, n, m, w_v, W_v, W)
     return clusterVal, delta2Star
 end
 
-function genRandomSol(n, m, K, B, L, l, lh, w_v, W_v, W)
+function genRandomSol(n::Int64, m::Int64, K::Int64, B::Int64, L::Int64, l, lh, w_v, W_v, W::Int64)
+    # returns a randomly generated admissible solution
     sol = [[false for i in 1:n] for k in 1:K]
     nodes = [i for i in 1:n]
     for k in 1:K
@@ -68,7 +72,7 @@ function genRandomSol(n, m, K, B, L, l, lh, w_v, W_v, W)
         if clusterVal <= B
             deleteat!(nodes, idx)
         else
-            sol[clusterIdx][nodes[idx]] = false 
+            sol[clusterIdx][nodes[idx]] = false
         end
         iter += 1
     end
@@ -76,6 +80,7 @@ function genRandomSol(n, m, K, B, L, l, lh, w_v, W_v, W)
 end
 
 function couplesWithSameW2(w_v2)
+    # returns an array of couples of vertices with same w_2 value
     n = length(w_v2)
     couples = []
     for d in Set(w_v2)
@@ -92,9 +97,9 @@ function couplesWithSameW2(w_v2)
     return couples
 end
 
-function transformSol(sol)
-    # Input: sol is a vector of vectors : sol[k][i] tells if node i is in cluster k
-    # Output: vectorSol is a vector : vectorSol[i] tells in which cluster is node i
+function sol2Dto1D(sol)
+    # Input: sol is a 2D vector : sol[k][i] tells if node i is in cluster k
+    # Output: vectorSol is a 1D vector : vectorSol[i] tells in which cluster node i is
     K = length(sol)
     n = length(sol[1])
     vectorSol = [0 for i in 1:n]
@@ -118,7 +123,7 @@ function heuristic(inputFile::String, timeLimit::Int64)
 
     # does not always generate a full solution
     sol, delta2 = genRandomSol(n, m, K, B, L, l, lh, w_v, W_v, W)
-    vectorSol = transformSol(sol)
+    vectorSol = sol2Dto1D(sol)
     val = partitionValue(vectorSol, n, m, l, lh, L)
     println("First solution value: ", val)
 
@@ -138,7 +143,7 @@ function heuristic(inputFile::String, timeLimit::Int64)
             vectorSol = vectorSol2
             println("After ", computationTime, " seconds, found a better solution with value ", val)
         end
-        
+
         computationTime = time() - start
     end
 

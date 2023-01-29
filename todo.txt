@@ -1,0 +1,5 @@
+Solution initiale
+    faire en sorte de toujours retourner une solution initiale
+
+Heuristique
+    

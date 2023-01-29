@@ -5,7 +5,6 @@ include("branchAndCut.jl")
 using CSV, DataFrames
 
 function benchmarkDualisation(timeLimit::Int)
-    # cd("./data/")
     files = readdir("./data_bnc")
     gaps = []
     times = []
@@ -28,7 +27,6 @@ function benchmarkDualisation(timeLimit::Int)
 end
 
 function benchmarkBnC(timeLimit::Int64)
-    # cd("./data/")
     files = readdir("./data_bnc")
     statuses = []
     gaps = []
@@ -53,7 +51,6 @@ function benchmarkBnC(timeLimit::Int64)
 end
 
 function benchmarkCoupes(timeLimit::Int64)
-    # cd("./data/")
     files = readdir("./data_cuts")
     statuses = []
     times = []
