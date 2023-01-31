@@ -51,7 +51,7 @@ function solveByDualisation(inputFile::String, timeLimit::Int)
     start = time()
     optimize!(master)
     computation_time = time() - start
-    gap = 1 - MOI.get(master, MOI.RelativeGap())
+    gap = MOI.get(master, MOI.RelativeGap())
     println("gap info ", gap)
     println()
 

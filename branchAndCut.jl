@@ -107,7 +107,7 @@ function solveByBnC(inputFile::String, timeLimit::Int64)
 
     @show callback_called
     # print(master)
-    gap = 1 - MOI.get(master, MOI.RelativeGap())
+    gap = MOI.get(master, MOI.RelativeGap())
     println("gap info ", gap)
     println()
 
