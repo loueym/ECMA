@@ -110,86 +110,8 @@ function heuristic(inputFile::String, timeLimit::Int64)
     currentValue = partitionValue(currentSol1D, n, m, l, lh, L)
     println("found with value: ", currentValue)
 
-    # trying to move around vertices
-    println(" ")
-    println("*** SIMPLE MOVE ***")
     for iter in 1:5
-        println("ITERATION ", iter)
-        nodeIndices = [i for i in 1:n]
-        shuffle!(nodeIndices)
-        for nodeIdx in nodeIndices
-            moved, currentValue = simpleMove(nodeIdx, currentSol1D, currentSol2D, K, B, n, m, w_v, W_v, W, l, lh, L, currentValue)
-            if moved
-                println("node ", nodeIdx, " moved")
-            end
-        end
-        currentValue = partitionValue(currentSol1D, n, m, l, lh, L)
-        println("value after search : ", currentValue)
-    end
-
-    # getting the value, delta_2 and w_v2 for each cluster
-    println(" ")
-    println("GETTING USEFUL DATA ABOUT SOLUTION")
-    delta2 = Vector()
-    w_v2 = Vector()
-    clusterValues = Vector()
-    for k in 1:K
-        clusVal, delta2Clus = clusterValue(k, currentSol2D, n, m, w_v, W_v, W)
-        push!(delta2, delta2Clus)
-        append!(clusterValues, clusVal)
-        w_v2k = w_v .* (delta2Clus .+ 1)
-        push!(w_v2, w_v2k)
-    end
-
-    println("*** SWAPPING COUPLES ***")
-    couples = couplesWithSameW2(currentSol1D, n, w_v, w_v2)
-    switchTwoNodes(currentSol1D, currentSol2D, currentValue, couples, B, n, m, w_v, W_v, W, l, lh, L)
-    currentValue = partitionValue(currentSol1D, n, m, l, lh, L)
-    println("value after swapping couples : ", currentValue)
-
-
-    println("**** SWAPPING NODES WITH SAME W_V ****")
-    swichNodes(currentSol1D, currentSol2D, currentValue, B, n, m, w_v, W_v, W, l, lh, L)
-    currentValue = partitionValue(currentSol1D, n, m, l, lh, L)
-    println("value after swapping nodes with same w_v : ", currentValue)
-
-    currentValue = switchTwoNodes(currentSol1D, currentSol2D, currentValue, couples, B, n, m, w_v, W_v, W, l, lh, L)
-    println("value after search : ", currentValue)
-
-    #println(" ")
-    #println("*** BIG AND SMALL CLUSTERS ***")
-    #for k in 1:K
-    #    clusVal, delta2Clus = clusterValue(k, currentSol2D, n, m, w_v, W_v, W)
-    #    delta2[k] = delta2Clus
-    #    clusterValues[k] = clusVal
-    #    w_v2k = w_v .* (delta2Clus .+ 1)
-    #    w_v2[k] = w_v2k
-    #end
-    #clusterMin = argmin(clusterValues)
-    #clusterMax = argmax(clusterValues)
-    #currentValue = swapMinMax(currentSol1D, currentSol2D, n, m, clusterMin, clusterMax, currentValue, w_v, W_v, W, l, lh, L)
-    #println("value after search : ", currentValue)
-
-    return currentSol1D, currentValue
-end
-
-function heuristicBis(inputFile::String, timeLimit::Int64)
-    include(inputFile)          # contains n, coordinates, lh[v], L, w_v, W_v, W, K, B,
-    println("nb max de cluster : K = ", K)
-    println("poids max d'un cluster : B = ", B)
-    m = n*n
-    l = generate_l(coordinates, n)
-
-    start = time()
-
-    println(" ")
-    println("LOOKING FOR FIRST SOLUTION")
-    currentSol1D = genSolWithSolver(n, m, K, B, L, l, lh, w_v, W_v, W)
-    currentSol2D = sol1Dto2D(currentSol1D, K, n)
-    currentValue = partitionValue(currentSol1D, n, m, l, lh, L)
-    println("found with value: ", currentValue)
-
-    for iter in 1:5
+        println(" ")
         println("ITERATION ", iter)
         # trying to move around vertices
         println("*** SIMPLE MOVE ***")
@@ -203,6 +125,7 @@ function heuristicBis(inputFile::String, timeLimit::Int64)
         end
         # currentValue = partitionValue(currentSol1D, n, m, l, lh, L)
         println("new value : ", currentValue)
+
         # getting the value, delta_2 and w_v2 for each cluster
         println("GETTING USEFUL DATA ABOUT SOLUTION")
         delta2 = Vector()
@@ -215,11 +138,19 @@ function heuristicBis(inputFile::String, timeLimit::Int64)
             w_v2k = w_v .* (delta2Clus .+ 1)
             push!(w_v2, w_v2k)
         end
+
         println("*** SWAPPING COUPLES ***")
         couples = couplesWithSameW2(currentSol1D, n, w_v, w_v2)
         currentValue = switchTwoNodes(currentSol1D, currentSol2D, currentValue, couples, B, n, m, w_v, W_v, W, l, lh, L)
         println("value after search : ", currentValue)
+
+        println("**** SWAPPING NODES WITH SAME W_V ****")
+        currentValue =switchNodes(currentSol1D, currentSol2D, currentValue, B, n, m, w_v, W_v, W, l, lh, L)
+        currentValue = partitionValue(currentSol1D, n, m, l, lh, L)
+        println("value after similar w_v swaps : ", currentValue)
     end
+
+    println("FINAL VALUE : ", currentValue)
 
     return currentSol1D, currentValue
 end

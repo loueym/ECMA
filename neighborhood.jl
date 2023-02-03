@@ -144,8 +144,6 @@ function simpleMove(nodeIdx::Int64, sol1D::Array{Int64}, sol2D, K::Int64, B::Int
     end
 end
 
-
-
 function nodesWithSameW(w_v, allowedGap::Float64)
     nodesBywv = Dict{}()
     for i in 1:length(w_v)
@@ -194,7 +192,7 @@ function changeSol1D(nodes::Vector{Int64}, allK::Vector{Int64}, sol1D, undo::Boo
     end
 end
 
-function swichNodes(sol1D::Vector{Int64}, sol2D, currentValue::Float64, B::Int64, n::Int64, m::Int64, w_v, W_v, W::Int64, l, lh, L::Int64)
+function switchNodes(sol1D::Vector{Int64}, sol2D, currentValue::Float64, B::Int64, n::Int64, m::Int64, w_v, W_v, W::Int64, l, lh, L::Int64)::Float64
     for gapValue in [0, 0.05, 0.1, 0.15]
         nodesBywv = nodesWithSameW(w_v, gapValue)
         nodesBywvValues = shuffle!(collect(values(nodesBywv)))
@@ -232,4 +230,5 @@ function swichNodes(sol1D::Vector{Int64}, sol2D, currentValue::Float64, B::Int64
             end
         end
     end
+    return currentValue
 end
