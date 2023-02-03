@@ -17,6 +17,7 @@ function benchmarkDualisation(timeLimit::Int)
         push!(times, compTime)
         push!(values, value)
         push!(solutions, clusters)
+        
     end
     df = DataFrame(File = files,
                    Time = times,
