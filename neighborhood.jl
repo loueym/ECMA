@@ -59,14 +59,45 @@ function removeSameClusterCouples(vectorSol::Vector{Int64}, couples)
 end
 
 # swaps a couple at random, making sure both nodes are not in the same cluster
-function switchTwoNodes(vectorSol::Vector{Int64}, couples)
-    couplesToSwitch = removeSameClusterCouples(vectorSol, couples)
-    randomIdx = rand(1:length(couplesToSwitch))
-    c = couplesToSwitch[randomIdx]
-    swappedVectorSol = copy(vectorSol)
-    swappedVectorSol[c[1]] = vectorSol[c[2]]
-    swappedVectorSol[c[2]] = vectorSol[c[1]]
-    return swappedVectorSol
+function switchTwoNodes(sol1D::Vector{Int64}, sol2D, couples, B::Int64, n::Int64, m::Int64, w_v, W_v, W::Int64, l, lh, L, nbIter::Int64)
+    # couples is a vector of tuples of nodes that are not in the same cluster and that could be swiched
+    shuffle!(couples)
+    n = min(nbIter, length(couples))
+    nodesChanged = Vector{Int64}()
+    for i in 1:n
+        c = couples[i]
+        n1, n2 = c[1], c[2]
+        if !(n1 in nodesChanged) && !(n2 in nodesChanged)
+            k1, k2 = sol1D[n1], sol1D[n2]
+            sol2D[k2][n2] = false
+            sol2D[k1][n2] = true
+            sol2D[k1][n1] = false
+            sol2D[k2][n1] = true
+            cluster1Val, delta21 = clusterValue(k1, sol2D, n, m, w_v, W_v, W)
+            cluster2Val, delta22 = clusterValue(k2, sol2D, n, m, w_v, W_v, W)
+            if cluster1Val <= B && cluster2Val <= B
+                sol1D[n1], sol1D[n2] = k2, k1
+                movedValue = partitionValue(sol1D, n, m, l, lh, L)
+                if movedValue < currentValue
+                    # we found a better solution
+                    append!(nodesChanged, n1, n2)
+                else
+                    # undo changes
+                    sol1D[n1], sol1D[n1] = k1, k2
+                    sol2D[k2][n2] = true
+                    sol2D[k1][n2] = false
+                    sol2D[k1][n1] = true
+                    sol2D[k2][n1] = false
+                end
+            else
+                # undo changes
+                sol2D[k2][n2] = true
+                sol2D[k1][n2] = false
+                sol2D[k1][n1] = true
+                sol2D[k2][n1] = false
+            end
+        end
+    end
 end
 
 # moves node nodeIdx to another cluster if it enhances the solution
