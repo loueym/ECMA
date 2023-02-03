@@ -1,6 +1,7 @@
 include("dualisation.jl")
 include("plansCoupants.jl")
 include("branchAndCut.jl")
+include("generateSol.jl")
 
 using CSV, DataFrames
 
@@ -17,7 +18,7 @@ function benchmarkDualisation(timeLimit::Int)
         push!(times, compTime)
         push!(values, value)
         push!(solutions, clusters)
-        
+
     end
     df = DataFrame(File = files,
                    Time = times,
@@ -70,4 +71,20 @@ function benchmarkCoupes(timeLimit::Int64)
                    Values = values,
                    Solutions = solutions)
     CSV.write("benchmarkCoupes.csv", df, delim=";")
+end
+
+function benchmarkHeuristic(timeLimit::Int64)
+    files = readdir("./data_heuristic")
+    values = []
+    solutions = []
+    for file in files
+        println("Processing " * file)
+        clusters, value = heuristic("data_heuristic/" * file, timeLimit)
+        push!(values, value)
+        push!(solutions, clusters)
+    end
+    df = DataFrame(File = files,
+                   Values = values,
+                   Solutions = solutions)
+    CSV.write("benchmarkHeuristicBigInstances.csv", df, delim=";")
 end

@@ -28,7 +28,7 @@ function genSolWithSolver(n, m, K, B, L, l, lh, w_v, W_v, W)
     @objective(getSol, Min, 0)
 
     # Désactive les sorties de CPLEX
-    set_optimizer_attribute(getSol, "CPX_PARAM_SCRIND", 0)
+    # set_optimizer_attribute(getSol, "CPX_PARAM_SCRIND", 0)
     optimize!(getSol)
 
     feasiblefound = primal_status(getSol) == MOI.FEASIBLE_POINT
@@ -101,8 +101,6 @@ function heuristic(inputFile::String, timeLimit::Int64)
     m = n*n
     l = generate_l(coordinates, n)
 
-    start = time()
-
     println(" ")
     println("LOOKING FOR FIRST SOLUTION")
     currentSol1D = genSolWithSolver(n, m, K, B, L, l, lh, w_v, W_v, W)
@@ -110,7 +108,11 @@ function heuristic(inputFile::String, timeLimit::Int64)
     currentValue = partitionValue(currentSol1D, n, m, l, lh, L)
     println("found with value: ", currentValue)
 
-    for iter in 1:5
+    start = time()
+    compTime = 0
+    iter = 1
+
+    while compTime < timeLimit
         println(" ")
         println("ITERATION ", iter)
         # trying to move around vertices
@@ -148,6 +150,9 @@ function heuristic(inputFile::String, timeLimit::Int64)
         currentValue =switchNodes(currentSol1D, currentSol2D, currentValue, B, n, m, w_v, W_v, W, l, lh, L)
         currentValue = partitionValue(currentSol1D, n, m, l, lh, L)
         println("value after similar w_v swaps : ", currentValue)
+
+        compTime = time() - start
+        iter+=1
     end
 
     println("FINAL VALUE : ", currentValue)
@@ -155,5 +160,4 @@ function heuristic(inputFile::String, timeLimit::Int64)
     return currentSol1D, currentValue
 end
 
-sol, val = heuristic("data/40_eil_6.tsp", 60)
-println(sol)
+# sol, val = heuristic("data/318_lin_6.tsp", 60)
