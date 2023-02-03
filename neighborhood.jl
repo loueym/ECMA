@@ -144,48 +144,92 @@ function simpleMove(nodeIdx::Int64, sol1D::Array{Int64}, sol2D, K::Int64, B::Int
     end
 end
 
-function swapMinMax(sol1D::Array{Int64}, sol2D, n::Int64, m::Int64, clusterMin::Int64, clusterMax::Int64, currentValue::Float64, w_v, W_v, W::Int64, l, lh, L::Int64)::Float64
-    # nodes in each cluster
-    nodesMin = Vector{Array}()
-    nodesMax = Vector{Array}()
-    for i in 1:n
-        if sol1D[i]==clusterMin
-            push!(nodesMin, [i, w_v[i]])
-        elseif sol1D[i]==clusterMax
-            push!(nodesMax, [i, w_v[i]])
-        end
-    end
-    # getting the node with biggest w_v for the biggest cluster and with smallest w_v for the smallest cluster
-    nodeMin = nodesMin[findmin(x->x[2], nodesMin)[2]][1]
-    nodeMax = nodesMax[findmax(x->x[2], nodesMax)[2]][1]
-    # swapping the nodes
-    sol2D[clusterMin][nodeMin] = false
-    sol2D[clusterMax][nodeMin] = true
-    sol2D[clusterMax][nodeMax] = false
-    sol2D[clusterMin][nodeMax] = true
-    clusterMinVal, delta2min = clusterValue(clusterMin, sol2D, n, m, w_v, W_v, W)
-    clusterMaxVal, delta2max = clusterValue(clusterMax, sol2D, n, m, w_v, W_v, W)
-    if clusterMinVal <= B && clusterMaxVal <= B
-        sol1D[nodeMin], sol1D[nodeMax] = clusterMax, clusterMin
-        movedValue = partitionValue(sol1D, n, m, l, lh, L)
-        if movedValue < currentValue
-            # we found a better solution
-            println("swap done !")
-            return movedValue
+
+
+function nodesWithSameW(w_v, allowedGap::Float64)
+    nodesBywv = Dict{}()
+    for i in 1:length(w_v)
+        w_v_i = w_v[i]
+        if w_v_i in keys(nodesBywv)
+            append!(nodesBywv[w_v_i], i)
         else
-            # undo changes
-            sol1D[nodeMin], sol1D[nodeMax] = clusterMin, clusterMax
-            sol2D[clusterMin][nodeMin] = true
-            sol2D[clusterMax][nodeMin] = false
-            sol2D[clusterMax][nodeMax] = true
-            sol2D[clusterMin][nodeMax] = false
+            nodesBywv[w_v_i] = Vector{Int64}([i])
         end
-    else
-        # undo changes
-        sol2D[clusterMin][nodeMin] = true
-        sol2D[clusterMax][nodeMin] = false
-        sol2D[clusterMax][nodeMax] = true
-        sol2D[clusterMin][nodeMax] = false
+        for w_v_val in keys(nodesBywv)
+            if (w_v_val != w_v_i) && (abs(w_v_i - w_v_val)/w_v_val < allowedGap)
+                append!(nodesBywv[w_v_val], i)
+            end
+        end
     end
-    return currentValue
+    return nodesBywv
+end
+
+function changeSol2D(nodes::Vector{Int64}, allK::Vector{Int64}, sol2D, undo::Bool)
+    for i in 1:length(nodes)
+        ni = nodes[i]
+        k = allK[i]
+        if i < length(nodes)
+            nextK = allK[i+1]
+        else
+            nextK = allK[1]
+        end
+        sol2D[k][ni] = undo
+        sol2D[nextK][ni] = !(undo)
+    end
+end
+
+function changeSol1D(nodes::Vector{Int64}, allK::Vector{Int64}, sol1D, undo::Bool)
+    for i in 1:length(nodes)
+        ni = nodes[i]
+        if undo
+            sol1D[ni] = allK[i]
+        else
+            if i < length(nodes)
+                nextK = allK[i+1]
+            else
+                nextK = allK[1]
+            end
+            sol1D[ni] = nextK
+        end
+    end
+end
+
+function swichNodes(sol1D::Vector{Int64}, sol2D, currentValue::Float64, B::Int64, n::Int64, m::Int64, w_v, W_v, W::Int64, l, lh, L::Int64)
+    for gapValue in [0, 0.05, 0.1, 0.15]
+        nodesBywv = nodesWithSameW(w_v, gapValue)
+        nodesBywvValues = shuffle!(collect(values(nodesBywv)))
+        for nodes in nodesBywvValues
+            shuffle!(nodes)
+            nbNodes = length(nodes)
+            if nbNodes > 1
+                allK = Vector{Int64}([sol1D[i] for i in nodes])
+                changeSol2D(nodes, allK, sol2D, false)
+
+                allLessThanB = true
+                for i in 1:nbNodes
+                    clusterVal, delta2 = clusterValue(allK[i], sol2D, n, m, w_v, W_v, W)
+                    if clusterVal > B
+                        allLessThanB = false
+                        break
+                    end
+                end
+                if allLessThanB
+                    changeSol1D(nodes, allK, sol1D, false)
+                    movedValue = partitionValue(sol1D, n, m, l, lh, L)
+                    if movedValue < currentValue
+                        # we found a better solution
+                        println("changing sol ! current = ", currentValue, " and new = ", movedValue)
+                        currentValue = movedValue
+                    else
+                        # undo changes
+                        changeSol1D(nodes, allK, sol1D, true)
+                        changeSol2D(nodes, allK, sol2D, true)
+                    end
+                else
+                    # undo changes
+                    changeSol2D(nodes, allK, sol2D, true)
+                end
+            end
+        end
+    end
 end
