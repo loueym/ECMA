@@ -144,3 +144,91 @@ function simpleMove(nodeIdx::Int64, sol1D::Array{Int64}, sol2D, K::Int64, B::Int
         return false
     end
 end
+
+function nodesWithSameW(w_v, allowedGap::Float64)
+    nodesBywv = Dict{}()
+    for i in 1:length(w_v)
+        w_v_i = w_v[i]
+        if w_v_i in keys(nodesBywv)
+            append!(nodesBywv[w_v_i], i)
+        else
+            nodesBywv[w_v_i] = Vector{Int64}([i])
+        end
+        for w_v_val in keys(nodesBywv)
+            if (w_v_val != w_v_i) && (abs(w_v_i - w_v_val)/w_v_val < allowedGap)
+                append!(nodesBywv[w_v_val], i)
+            end
+        end
+    end
+    return nodesBywv
+end
+
+function changeSol2D(nodes::Vector{Int64}, allK::Vector{Int64}, sol2D, undo::Bool)
+    for i in 1:length(nodes)
+        ni = nodes[i]
+        k = allK[i]
+        if i < length(nodes)
+            nextK = allK[i+1]
+        else
+            nextK = allK[1]
+        end
+        sol2D[k][ni] = undo
+        sol2D[nextK][ni] = !(undo)
+    end
+end
+
+function changeSol1D(nodes::Vector{Int64}, allK::Vector{Int64}, sol1D, undo::Bool)
+    for i in 1:length(nodes)
+        ni = nodes[i]
+        if undo
+            sol1D[ni] = allK[i]
+        else
+            if i < length(nodes)
+                nextK = allK[i+1]
+            else
+                nextK = allK[1]
+            end
+            sol1D[ni] = nextK
+        end
+    end
+end
+
+function swichNodes(sol1D::Vector{Int64}, sol2D, currentValue::Float64, B::Int64, n::Int64, m::Int64, w_v, W_v, W::Int64, l, lh, L::Int64)
+    for gapValue in [0, 0.05, 0.1, 0.15]
+        nodesBywv = nodesWithSameW(w_v, gapValue)
+        nodesBywvValues = shuffle!(collect(values(nodesBywv)))
+        for nodes in nodesBywvValues
+            shuffle!(nodes)
+            nbNodes = length(nodes)
+            if nbNodes > 1
+                allK = Vector{Int64}([sol1D[i] for i in nodes])
+                changeSol2D(nodes, allK, sol2D, false)
+                
+                allLessThanB = true
+                for i in 1:nbNodes
+                    clusterVal, delta2 = clusterValue(allK[i], sol2D, n, m, w_v, W_v, W)
+                    if clusterVal > B
+                        allLessThanB = false
+                        break
+                    end
+                end
+                if allLessThanB
+                    changeSol1D(nodes, allK, sol1D, false)
+                    movedValue = partitionValue(sol1D, n, m, l, lh, L)
+                    if movedValue < currentValue
+                        # we found a better solution
+                        println("changing sol ! current = ", currentValue, " and new = ", movedValue)
+                        currentValue = movedValue
+                    else
+                        # undo changes
+                        changeSol1D(nodes, allK, sol1D, true)
+                        changeSol2D(nodes, allK, sol2D, true)
+                    end
+                else
+                    # undo changes
+                    changeSol2D(nodes, allK, sol2D, true)
+                end
+            end
+        end
+    end
+end
