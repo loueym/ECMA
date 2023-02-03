@@ -141,7 +141,7 @@ function heuristic(inputFile::String, timeLimit::Int64)
 
     println("*** SWAPPING COUPLES ***")
     couples = couplesWithSameW2(currentSol1D, n, w_v, w_v2)
-    switchTwoNodes(currentSol1D, currentSol2D, currentValue, couples, B, n, m, w_v, W_v, W, l, lh, L, length(couples))
+    switchTwoNodes(currentSol1D, currentSol2D, currentValue, couples, B, n, m, w_v, W_v, W, l, lh, L)
     currentValue = partitionValue(currentSol1D, n, m, l, lh, L)
     println("value after search : ", currentValue)
 
