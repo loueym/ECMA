@@ -1,8 +1,8 @@
 include("common.jl")
 
 ### TO COMPUTE THE VALUE OF THE GIVEN PARTITION
-function partitionValue(vectorPartition, n::Int64, m::Int64, l, lh, L::Int64)::Float64
-    x = xFromPartition(vectorPartition, n, m)
+function partitionValue(sol1D, n::Int64, m::Int64, l, lh, L::Int64)::Float64
+    x = xFromPartition(sol1D, n, m)
 
     solVal = Model(CPLEX.Optimizer)
     @variable(solVal, delta1[e in 1:m] >= 0)
@@ -70,37 +70,43 @@ function switchTwoNodes(vectorSol::Vector{Int64}, couples)
 end
 
 # moves node nodeIdx to another cluster if it enhances the solution
-function simpleMove(nodeIdx::Int64, sol1D::Array{Int64}, sol2D, K::Int64, B::Int64, n::Int64, m::Int64, w_v, W_v, W::Int64, currentValue::Float64)
+function simpleMove(nodeIdx::Int64, sol1D::Array{Int64}, sol2D, K::Int64, B::Int64, n::Int64, m::Int64, w_v, W_v, W::Int64, l, lh, L::Int64, currentValue::Float64)::Bool
     originCluster = sol1D[nodeIdx]
+    destinationCluster = 0
+    bestValue = currentValue
     # k is the cluster to put the node in
     if originCluster==1
         k = 2
     else
         k = 1
     end
-    goOn = true
-    while k<=K && goOn
+    while k<=K
         # test simple move
         sol2D[k][nodeIdx] = true
+        sol1D[nodeIdx] = k
         movedClusterValue, delta2 = clusterValue(k, sol2D, n, m, w_v, W_v, W)
         if movedClusterValue <= B
-            sol1D[nodeIdx] = k
             movedValue = partitionValue(sol1D, n, m, l, lh, L)
-            if movedValue < currentValue
-                goOn = false
-                sol2D[originCluster][nodeIdx] = false
-            else
-                sol1D[nodeIdx] = originCluster
-                sol2D[k][nodeIdx] = false
-                sol2D[originCluster][nodeIdx] = true
+            if movedValue < bestValue
+                destinationCluster = k
+                bestValue = movedValue
             end
-        else
-            sol2D[k][nodeIdx] = false
         end
+        # get back to original partition
+        sol2D[k][nodeIdx] = false
+        # test the next cluster
         k += 1
         if k==originCluster
             k+=1
         end
     end
-    return !goOn
+    if destinationCluster!=0
+        sol2D[originCluster][nodeIdx] = false
+        sol2D[destinationCluster][nodeIdx] = true
+        sol1D[nodeIdx] = destinationCluster
+        return true
+    else
+        sol1D[nodeIdx] = originCluster
+        return false
+    end
 end
