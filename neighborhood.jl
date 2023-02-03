@@ -59,7 +59,7 @@ function removeSameClusterCouples(vectorSol::Vector{Int64}, couples)
 end
 
 # swaps a couple at random, making sure both nodes are not in the same cluster
-function switchTwoNodes(sol1D::Vector{Int64}, sol2D, currentValue::Float64, couples, B::Int64, n::Int64, m::Int64, w_v, W_v, W::Int64, l, lh, L)
+function switchTwoNodes(sol1D::Vector{Int64}, sol2D, currentValue::Float64, couples, B::Int64, n::Int64, m::Int64, w_v, W_v, W::Int64, l, lh, L::Int64)::Float64
     # couples is a vector of tuples of nodes that are not in the same cluster and that could be swiched
     shuffle!(couples)
     nodesChanged = Vector{Int64}()
@@ -79,9 +79,8 @@ function switchTwoNodes(sol1D::Vector{Int64}, sol2D, currentValue::Float64, coup
                 movedValue = partitionValue(sol1D, n, m, l, lh, L)
                 if movedValue < currentValue
                     # we found a better solution
-                    println("changing sol ! current = ", currentValue, " and new = ", movedValue)
-                    append!(nodesChanged, n1)
-                    append!(nodesChanged, n2)
+                    println("from ", currentValue, " to ", movedValue)
+                    append!(nodesChanged, [n1,n2])
                     currentValue = movedValue
                 else
                     # undo changes
@@ -100,11 +99,11 @@ function switchTwoNodes(sol1D::Vector{Int64}, sol2D, currentValue::Float64, coup
             end
         end
     end
-    println("current value is ", currentValue, " and partition value is ", partitionValue(sol1D, n, m, l, lh, L))
+    return currentValue
 end
 
 # moves node nodeIdx to another cluster if it enhances the solution
-function simpleMove(nodeIdx::Int64, sol1D::Array{Int64}, sol2D, K::Int64, B::Int64, n::Int64, m::Int64, w_v, W_v, W::Int64, l, lh, L::Int64, currentValue::Float64)::Bool
+function simpleMove(nodeIdx::Int64, sol1D::Array{Int64}, sol2D, K::Int64, B::Int64, n::Int64, m::Int64, w_v, W_v, W::Int64, l, lh, L::Int64, currentValue::Float64)
     originCluster = sol1D[nodeIdx]
     destinationCluster = 0
     bestValue = currentValue
@@ -138,9 +137,55 @@ function simpleMove(nodeIdx::Int64, sol1D::Array{Int64}, sol2D, K::Int64, B::Int
         sol2D[originCluster][nodeIdx] = false
         sol2D[destinationCluster][nodeIdx] = true
         sol1D[nodeIdx] = destinationCluster
-        return true
+        return true, bestValue
     else
         sol1D[nodeIdx] = originCluster
-        return false
+        return false, currentValue
     end
+end
+
+function swapMinMax(sol1D::Array{Int64}, sol2D, n::Int64, m::Int64, clusterMin::Int64, clusterMax::Int64, currentValue::Float64, w_v, W_v, W::Int64, l, lh, L::Int64)::Float64
+    # nodes in each cluster
+    nodesMin = Vector{Array}()
+    nodesMax = Vector{Array}()
+    for i in 1:n
+        if sol1D[i]==clusterMin
+            push!(nodesMin, [i, w_v[i]])
+        elseif sol1D[i]==clusterMax
+            push!(nodesMax, [i, w_v[i]])
+        end
+    end
+    # getting the node with biggest w_v for the biggest cluster and with smallest w_v for the smallest cluster
+    nodeMin = nodesMin[findmin(x->x[2], nodesMin)[2]][1]
+    nodeMax = nodesMax[findmax(x->x[2], nodesMax)[2]][1]
+    # swapping the nodes
+    sol2D[clusterMin][nodeMin] = false
+    sol2D[clusterMax][nodeMin] = true
+    sol2D[clusterMax][nodeMax] = false
+    sol2D[clusterMin][nodeMax] = true
+    clusterMinVal, delta2min = clusterValue(clusterMin, sol2D, n, m, w_v, W_v, W)
+    clusterMaxVal, delta2max = clusterValue(clusterMax, sol2D, n, m, w_v, W_v, W)
+    if clusterMinVal <= B && clusterMaxVal <= B
+        sol1D[nodeMin], sol1D[nodeMax] = clusterMax, clusterMin
+        movedValue = partitionValue(sol1D, n, m, l, lh, L)
+        if movedValue < currentValue
+            # we found a better solution
+            println("swap done !")
+            return movedValue
+        else
+            # undo changes
+            sol1D[nodeMin], sol1D[nodeMax] = clusterMin, clusterMax
+            sol2D[clusterMin][nodeMin] = true
+            sol2D[clusterMax][nodeMin] = false
+            sol2D[clusterMax][nodeMax] = true
+            sol2D[clusterMin][nodeMax] = false
+        end
+    else
+        # undo changes
+        sol2D[clusterMin][nodeMin] = true
+        sol2D[clusterMax][nodeMin] = false
+        sol2D[clusterMax][nodeMax] = true
+        sol2D[clusterMin][nodeMax] = false
+    end
+    return currentValue
 end
