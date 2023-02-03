@@ -91,6 +91,7 @@ function couplesWithSameW2(sol1D::Array{Int64}, n::Int64, w_v, w_v2)
             end
         end
     end
+    println("COUPLES : ", couples)
     return couples
 end
 
@@ -110,6 +111,7 @@ function heuristic(inputFile::String, timeLimit::Int64)
     println("found with value: ", currentValue)
 
     # trying to move around vertices
+    println("*** SIMPLE MOVE ***")
     for iter in 1:5
         println("ITERATION : ", iter)
         nodeIndices = [i for i in 1:n]
@@ -125,7 +127,7 @@ function heuristic(inputFile::String, timeLimit::Int64)
     end
 
     # getting the value, delta_2 and w_v2 for each cluster
-    println("GETTING USEFUL DATA ABOUT INITIAL SOLUTION")
+    println("GETTING USEFUL DATA ABOUT SOLUTION")
     delta2 = Vector()
     w_v2 = Vector()
     clusterValues = Vector()
@@ -137,12 +139,12 @@ function heuristic(inputFile::String, timeLimit::Int64)
         push!(w_v2, w_v2k)
     end
 
+    println("*** SWAPPING COUPLES ***")
+    couples = couplesWithSameW2(currentSol1D, n, w_v, w_v2)
+    switchTwoNodes(currentSol1D, currentSol2D, couples, B, n, m, w_v, W_v, W, l, lh, L, 10)
+
     return currentSol1D, currentValue
 end
-
-    # generating a list of tuples of nodes with same w_v^2
-    #couples = couplesWithSameW2(w_v2)
-    #println("COUPLES : ", couples)
 
     #computationTime = time() - start
 
