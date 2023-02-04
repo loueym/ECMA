@@ -53,14 +53,14 @@ function benchmarkBnC(timeLimit::Int64)
 end
 
 function benchmarkCoupes(timeLimit::Int64)
-    files = readdir("./data_cuts")
+    files = readdir("./data_heuristic")
     statuses = []
     times = []
     values = []
     solutions = []
     for file in files
         println("Processing " * file)
-        clusters, value, lower_bound, compTime, status = solveByCuts("data_cuts/" * file, timeLimit)
+        clusters, value, lower_bound, compTime, status = solveByCuts("data_heuristic/" * file, timeLimit)
         push!(statuses, status)
         push!(times, compTime)
         push!(values, value)
