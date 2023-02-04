@@ -101,6 +101,9 @@ function heuristic(inputFile::String, timeLimit::Int64)
     m = n*n
     l = generate_l(coordinates, n)
 
+    
+    startBeforeFirstSol = time()
+
     println(" ")
     println("LOOKING FOR FIRST SOLUTION")
     currentSol1D = genSolWithSolver(n, m, K, B, L, l, lh, w_v, W_v, W)
@@ -111,6 +114,7 @@ function heuristic(inputFile::String, timeLimit::Int64)
     start = time()
     compTime = 0
     iter = 1
+    lengthMax = 200
 
     while compTime < timeLimit
         println(" ")
@@ -119,6 +123,9 @@ function heuristic(inputFile::String, timeLimit::Int64)
         println("*** SIMPLE MOVE ***")
         nodeIndices = [i for i in 1:n]
         shuffle!(nodeIndices)
+        if length(nodeIndices) > lengthMax
+            nodeIndices = nodeIndices[1:lengthMax]
+        end
         for nodeIdx in nodeIndices
             moved, currentValue = simpleMove(nodeIdx, currentSol1D, currentSol2D, K, B, n, m, w_v, W_v, W, l, lh, L, currentValue)
             if moved
@@ -143,11 +150,11 @@ function heuristic(inputFile::String, timeLimit::Int64)
 
         println("*** SWAPPING COUPLES ***")
         couples = couplesWithSameW2(currentSol1D, n, w_v, w_v2)
-        currentValue = switchTwoNodes(currentSol1D, currentSol2D, currentValue, couples, B, n, m, w_v, W_v, W, l, lh, L)
-        println("value after search : ", currentValue)
+        currentValue = switchTwoNodes(currentSol1D, currentSol2D, currentValue, couples, B, n, m, w_v, W_v, W, l, lh, L, lengthMax)
+        println("value after swaping couples : ", currentValue)
 
         println("**** SWAPPING NODES WITH SAME W_V ****")
-        currentValue =switchNodes(currentSol1D, currentSol2D, currentValue, B, n, m, w_v, W_v, W, l, lh, L)
+        currentValue =switchNodes(currentSol1D, currentSol2D, currentValue, B, n, m, w_v, W_v, W, l, lh, L, lengthMax)
         currentValue = partitionValue(currentSol1D, n, m, l, lh, L)
         println("value after similar w_v swaps : ", currentValue)
 
@@ -157,7 +164,8 @@ function heuristic(inputFile::String, timeLimit::Int64)
 
     println("FINAL VALUE : ", currentValue)
 
-    return currentSol1D, currentValue
+    totalCompTime = time() - startBeforeFirstSol
+    return currentSol1D, currentValue, totalCompTime
 end
 
-# sol, val = heuristic("data/318_lin_6.tsp", 60)
+# sol, val, compTime = heuristic("data/318_lin_6.tsp", 60)

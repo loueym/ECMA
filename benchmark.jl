@@ -70,21 +70,24 @@ function benchmarkCoupes(timeLimit::Int64)
                    Time = times,
                    Values = values,
                    Solutions = solutions)
-    CSV.write("benchmarkCoupes.csv", df, delim=";")
+    CSV.write("benchmarkCoupes.csv", df, delim=";", append=true)
 end
 
 function benchmarkHeuristic(timeLimit::Int64)
-    files = readdir("./data_heuristic")
+    files = readdir("./data_dual")
+    times = []
     values = []
     solutions = []
     for file in files
         println("Processing " * file)
-        clusters, value = heuristic("data_heuristic/" * file, timeLimit)
+        clusters, value, compTime = heuristic("data_dual/" * file, timeLimit)
+        push!(times, compTime)
         push!(values, value)
         push!(solutions, clusters)
     end
     df = DataFrame(File = files,
+                   Time = times,
                    Values = values,
                    Solutions = solutions)
-    CSV.write("benchmarkHeuristicBigInstances.csv", df, delim=";")
+    CSV.write("benchmarkHeuristicAfterFix.csv", df, delim=";", append=true)
 end

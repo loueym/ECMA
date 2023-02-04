@@ -59,11 +59,11 @@ function removeSameClusterCouples(vectorSol::Vector{Int64}, couples)
 end
 
 # swaps a couple at random, making sure both nodes are not in the same cluster
-function switchTwoNodes(sol1D::Vector{Int64}, sol2D, currentValue::Float64, couples, B::Int64, n::Int64, m::Int64, w_v, W_v, W::Int64, l, lh, L::Int64)::Float64
+function switchTwoNodes(sol1D::Vector{Int64}, sol2D, currentValue::Float64, couples, B::Int64, n::Int64, m::Int64, w_v, W_v, W::Int64, l, lh, L::Int64, lengthMax::Int64)::Float64
     # couples is a vector of tuples of nodes that are not in the same cluster and that could be swiched
     shuffle!(couples)
     nodesChanged = Vector{Int64}()
-    for i in 1:length(couples)
+    for i in 1:min(length(couples), lengthMax)
         c = couples[i]
         n1, n2 = c[1], c[2]
         if !(n1 in nodesChanged) && !(n2 in nodesChanged)
@@ -171,8 +171,10 @@ function changeSol2D(nodes::Vector{Int64}, allK::Vector{Int64}, sol2D, undo::Boo
         else
             nextK = allK[1]
         end
-        sol2D[k][ni] = undo
-        sol2D[nextK][ni] = !(undo)
+        if nextK != k
+            sol2D[k][ni] = undo
+            sol2D[nextK][ni] = !undo
+        end
     end
 end
 
@@ -192,10 +194,13 @@ function changeSol1D(nodes::Vector{Int64}, allK::Vector{Int64}, sol1D, undo::Boo
     end
 end
 
-function switchNodes(sol1D::Vector{Int64}, sol2D, currentValue::Float64, B::Int64, n::Int64, m::Int64, w_v, W_v, W::Int64, l, lh, L::Int64)::Float64
+function switchNodes(sol1D::Vector{Int64}, sol2D, currentValue::Float64, B::Int64, n::Int64, m::Int64, w_v, W_v, W::Int64, l, lh, L::Int64, lengthMax::Int64)::Float64
     for gapValue in [0, 0.05, 0.1, 0.15]
         nodesBywv = nodesWithSameW(w_v, gapValue)
         nodesBywvValues = shuffle!(collect(values(nodesBywv)))
+        if length(nodesBywvValues) > lengthMax
+            nodesBywvValues = nodesBywvValues[1:lengthMax]
+        end
         for nodes in nodesBywvValues
             shuffle!(nodes)
             nbNodes = length(nodes)

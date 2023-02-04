@@ -84,14 +84,14 @@ function solveByCuts(inputFile::String, timeLimit::Int64)
         continue_resolution = false
         t, x, y, lower_bound = master_pb(n, m, K, w_v, W, W_v, l, L, lh, B, U_1, U_2)
         delta1, obj_val = slave_objective(l, L, lh, x, m)
-        if obj_val > t
+        if obj_val > t + 0.0001
             new_constraint = [1/2*l[e]+delta1[e]*(lh[node1(e, n)]+lh[node2(e, n)]) for e in 1:m]
             push!(U_1, new_constraint)
             continue_resolution = true
         end
         for k in 1:K
             delta2, cons_val = slave_constraint(k, w_v, W, W_v, y, n)
-            if cons_val > B
+            if cons_val > B + 0.0001
                 new_constraint = [w_v[v]*(1+delta2[v]) for v in 1:n]
                 push!(U_2, new_constraint)
                 continue_resolution = true
