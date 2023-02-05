@@ -39,7 +39,7 @@ function genSolWithSolver(n, m, K, B, L, l, lh, w_v, W_v, W)
     if feasiblefound
         clusters = JuMP.value.(y)
     else
-        return feasiblefound, nothing
+        return feasiblefound, zeros(Int64, n)
     end
 
     sol = zeros(Int64, n)
