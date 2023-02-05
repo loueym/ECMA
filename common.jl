@@ -1,3 +1,5 @@
+### FUNCTIONS USED FOR THE EXACT RESOLUTIONS
+
 function distance(Xp1::Float64, Yp1::Float64, Xp2::Float64, Yp2::Float64)::Float64
     return sqrt((Xp1-Xp2)*(Xp1-Xp2) + (Yp1-Yp2)*(Yp1-Yp2))
 end

@@ -1,3 +1,5 @@
+### RESOLUTION PAR PLANS COUPANTS
+
 include("coupes.jl")
 
 
@@ -29,9 +31,7 @@ function master_pb(n::Int, m::Int, K::Int, w_v, W::Int, W_v, l, L::Int, lh, B::I
     # Désactive les sorties de CPLEX (optionnel)
     set_optimizer_attribute(master, "CPX_PARAM_SCRIND", 0)
 
-    # start = time()
     optimize!(master)
-    # computation_time = time() - start
 
     feasiblefound = primal_status(master) == MOI.FEASIBLE_POINT
     if feasiblefound
@@ -41,7 +41,7 @@ function master_pb(n::Int, m::Int, K::Int, w_v, W::Int, W_v, l, L::Int, lh, B::I
         obj = JuMP.objective_value(master)
     end
 
-    return t_star, x_star, y_star, obj #, computation_time
+    return t_star, x_star, y_star, obj
 end
 
 function solveByCuts(inputFile::String, timeLimit::Int64)
@@ -99,7 +99,6 @@ function solveByCuts(inputFile::String, timeLimit::Int64)
         end
     end
 
-
     computation_time = time() - start
 
     if continue_resolution
@@ -127,9 +126,7 @@ function solveByCuts(inputFile::String, timeLimit::Int64)
     return res, t, lower_bound, computation_time, status
 end
 
-
-# inputFile = "data/10_ulysses_3.tsp"
-# res, t, lower_bound, computation_time = solveByCuts(inputFile)
+# res, t, lower_bound, computation_time = solveByCuts("data/10_ulysses_3.tsp")
 # println("clusters : ", res)
 # println("value : ", t)
 # println("computation time : ", computation_time)

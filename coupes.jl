@@ -1,3 +1,5 @@
+### SUB-PROBLEMS FOR BnC AND CUTS METHODS
+
 using JuMP
 using CPLEX
 
@@ -23,9 +25,7 @@ function slave_objective(l, L::Int, lh, x_star, m::Int)
     # Désactive les sorties de CPLEX (optionnel)
     set_optimizer_attribute(slave_obj, "CPX_PARAM_SCRIND", 0)
 
-    # start = time()
     optimize!(slave_obj)
-    # computation_time = time() - start
 
     feasiblefound = primal_status(slave_obj) == MOI.FEASIBLE_POINT
     if feasiblefound
@@ -33,8 +33,7 @@ function slave_objective(l, L::Int, lh, x_star, m::Int)
         obj = JuMP.objective_value(slave_obj)
     end
 
-    return delta1_star, obj #, computation_time
-    # SHALL RETURN DELTA1_STAR
+    return delta1_star, obj
 end
 
 function slave_constraint(k::Int, w_v, W::Int, W_v, y_star, n::Int)
@@ -56,9 +55,7 @@ function slave_constraint(k::Int, w_v, W::Int, W_v, y_star, n::Int)
     # Désactive les sorties de CPLEX (optionnel)
     set_optimizer_attribute(slave_cons, "CPX_PARAM_SCRIND", 0)
 
-    # start = time()
     optimize!(slave_cons)
-    # computation_time = time() - start
 
     feasiblefound = primal_status(slave_cons) == MOI.FEASIBLE_POINT
     if feasiblefound
@@ -66,6 +63,5 @@ function slave_constraint(k::Int, w_v, W::Int, W_v, y_star, n::Int)
         obj = JuMP.objective_value(slave_cons)
     end
 
-    return delta2_star, obj #, computation_time
-    # SHALL RETURN DELTA2_STAR
+    return delta2_star, obj
 end

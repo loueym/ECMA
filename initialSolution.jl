@@ -1,3 +1,5 @@
+### HEURISTICS FOR THE GENERATION OF AN INITIAL SOLUTION
+
 ### TO GENERATE A RANDOM SOLUTION (DOES NOT ALWAYS SUCCEED)
 function genRandomSol(n::Int64, m::Int64, K::Int64, B::Int64, L::Int64, l, lh, w_v, W_v, W::Int64)
     # returns a randomly generated admissible solution

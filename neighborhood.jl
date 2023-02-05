@@ -1,3 +1,5 @@
+### VOISINAGES ET AUTRES FONCTIONS UTILISEES DANS L'HEURISTIQUE
+
 include("common.jl")
 
 ### TO COMPUTE THE VALUE OF THE GIVEN PARTITION
@@ -47,60 +49,7 @@ function clusterValue(k::Int64, partition2D, n::Int64, m::Int64, w_v, W_v, W::In
     return clusterVal, delta2Star
 end
 
-# returns a vector with couples that are not in the same cluster
-function removeSameClusterCouples(vectorSol::Vector{Int64}, couples)
-    couplesToSwitch = Vector()
-    for c in couples
-        if vectorSol[c[1]] != vectorSol[c[2]]
-            push!(couplesToSwitch, c)
-        end
-    end
-    return couplesToSwitch
-end
-
-# swaps a couple at random, making sure both nodes are not in the same cluster
-function switchTwoNodes(sol1D::Vector{Int64}, sol2D, currentValue::Float64, couples, B::Int64, n::Int64, m::Int64, w_v, W_v, W::Int64, l, lh, L::Int64, lengthMax::Int64)::Float64
-    # couples is a vector of tuples of nodes that are not in the same cluster and that could be swiched
-    shuffle!(couples)
-    nodesChanged = Vector{Int64}()
-    for i in 1:min(length(couples), lengthMax)
-        c = couples[i]
-        n1, n2 = c[1], c[2]
-        if !(n1 in nodesChanged) && !(n2 in nodesChanged)
-            k1, k2 = sol1D[n1], sol1D[n2]
-            sol2D[k2][n2] = false
-            sol2D[k1][n2] = true
-            sol2D[k1][n1] = false
-            sol2D[k2][n1] = true
-            cluster1Val, delta21 = clusterValue(k1, sol2D, n, m, w_v, W_v, W)
-            cluster2Val, delta22 = clusterValue(k2, sol2D, n, m, w_v, W_v, W)
-            if cluster1Val <= B && cluster2Val <= B
-                sol1D[n1], sol1D[n2] = k2, k1
-                movedValue = partitionValue(sol1D, n, m, l, lh, L)
-                if movedValue < currentValue
-                    # we found a better solution
-                    println("from ", currentValue, " to ", movedValue)
-                    append!(nodesChanged, [n1,n2])
-                    currentValue = movedValue
-                else
-                    # undo changes
-                    sol1D[n1], sol1D[n2] = k1, k2
-                    sol2D[k2][n2] = true
-                    sol2D[k1][n2] = false
-                    sol2D[k1][n1] = true
-                    sol2D[k2][n1] = false
-                end
-            else
-                # undo changes
-                sol2D[k2][n2] = true
-                sol2D[k1][n2] = false
-                sol2D[k1][n1] = true
-                sol2D[k2][n1] = false
-            end
-        end
-    end
-    return currentValue
-end
+### FIRST NEIGHBORHOOD STRUCTURE
 
 # moves node nodeIdx to another cluster if it enhances the solution
 function simpleMove(nodeIdx::Int64, sol1D::Array{Int64}, sol2D, K::Int64, B::Int64, n::Int64, m::Int64, w_v, W_v, W::Int64, l, lh, L::Int64, currentValue::Float64)
@@ -143,6 +92,54 @@ function simpleMove(nodeIdx::Int64, sol1D::Array{Int64}, sol2D, K::Int64, B::Int
         return false, currentValue
     end
 end
+
+### SECOND NEIGHBORHOOD STRUCTURE
+
+# swaps a couple at random, making sure both nodes are not in the same cluster
+function switchTwoNodes(sol1D::Vector{Int64}, sol2D, currentValue::Float64, couples, B::Int64, n::Int64, m::Int64, w_v, W_v, W::Int64, l, lh, L::Int64, lengthMax::Int64)::Float64
+    # couples is a vector of tuples of two nodes that are not in the same cluster and that could be switched
+    shuffle!(couples)
+    nodesChanged = Vector{Int64}()
+    for i in 1:min(length(couples), lengthMax)
+        c = couples[i]
+        n1, n2 = c[1], c[2]
+        if !(n1 in nodesChanged) && !(n2 in nodesChanged)
+            k1, k2 = sol1D[n1], sol1D[n2]
+            sol2D[k2][n2] = false
+            sol2D[k1][n2] = true
+            sol2D[k1][n1] = false
+            sol2D[k2][n1] = true
+            cluster1Val, delta21 = clusterValue(k1, sol2D, n, m, w_v, W_v, W)
+            cluster2Val, delta22 = clusterValue(k2, sol2D, n, m, w_v, W_v, W)
+            if cluster1Val <= B && cluster2Val <= B
+                sol1D[n1], sol1D[n2] = k2, k1
+                movedValue = partitionValue(sol1D, n, m, l, lh, L)
+                if movedValue < currentValue
+                    # we found a better solution
+                    println("from ", currentValue, " to ", movedValue)
+                    append!(nodesChanged, [n1,n2])
+                    currentValue = movedValue
+                else
+                    # undo changes
+                    sol1D[n1], sol1D[n2] = k1, k2
+                    sol2D[k2][n2] = true
+                    sol2D[k1][n2] = false
+                    sol2D[k1][n1] = true
+                    sol2D[k2][n1] = false
+                end
+            else
+                # undo changes
+                sol2D[k2][n2] = true
+                sol2D[k1][n2] = false
+                sol2D[k1][n1] = true
+                sol2D[k2][n1] = false
+            end
+        end
+    end
+    return currentValue
+end
+
+### FOR THE THIRD NEIGHBORHOOD STRUCTURE
 
 function nodesWithSameW(w_v, allowedGap::Float64)
     nodesBywv = Dict{}()

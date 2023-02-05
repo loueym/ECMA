@@ -1,9 +1,12 @@
+### FOR THE HEURISTIC RESOLUTION
+
 using JuMP
 using CPLEX
 using Random
 
 include("neighborhood.jl")
 
+### INITIAL SOLUTION
 function genSolWithSolver(n, m, K, B, L, l, lh, w_v, W_v, W)
     getSol = Model(CPLEX.Optimizer)
 
@@ -51,6 +54,8 @@ function genSolWithSolver(n, m, K, B, L, l, lh, w_v, W_v, W)
     return feasiblefound, sol
 end
 
+### SOME USEFUL FUNCTIONS FOR THE HEURISTIC
+
 function xFromPartition(sol1D, n::Int64, m::Int64)::Vector{Bool}
     # returns a vector of bools with true if the edge is in a cluster
     return Vector([(sol1D[node1(e, n)] == sol1D[node2(e, n)]) for e in 1:m])
@@ -97,6 +102,8 @@ function couplesWithSameW2(sol1D::Array{Int64}, n::Int64, w_v, w_v2)
     return couples
 end
 
+### THE ACTUAL HEURISTIC
+
 function heuristic(inputFile::String, timeLimit::Int64)
     include(inputFile)          # contains n, coordinates, lh[v], L, w_v, W_v, W, K, B,
     println("nb max de cluster : K = ", K)
@@ -104,7 +111,6 @@ function heuristic(inputFile::String, timeLimit::Int64)
     m = n*n
     l = generate_l(coordinates, n)
 
-    
     startBeforeFirstSol = time()
 
     println(" ")
