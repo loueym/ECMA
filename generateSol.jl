@@ -29,11 +29,14 @@ function genSolWithSolver(n, m, K, B, L, l, lh, w_v, W_v, W)
 
     # Désactive les sorties de CPLEX
     # set_optimizer_attribute(getSol, "CPX_PARAM_SCRIND", 0)
+    set_time_limit_sec(getSol, 3600)
     optimize!(getSol)
 
     feasiblefound = primal_status(getSol) == MOI.FEASIBLE_POINT
     if feasiblefound
         clusters = JuMP.value.(y)
+    else
+        return feasiblefound, nothing
     end
 
     sol = zeros(Int64, n)
@@ -45,7 +48,7 @@ function genSolWithSolver(n, m, K, B, L, l, lh, w_v, W_v, W)
         end
     end
 
-    return sol
+    return feasiblefound, sol
 end
 
 function xFromPartition(sol1D, n::Int64, m::Int64)::Vector{Bool}
@@ -106,7 +109,11 @@ function heuristic(inputFile::String, timeLimit::Int64)
 
     println(" ")
     println("LOOKING FOR FIRST SOLUTION")
-    currentSol1D = genSolWithSolver(n, m, K, B, L, l, lh, w_v, W_v, W)
+    feasiblefound, currentSol1D = genSolWithSolver(n, m, K, B, L, l, lh, w_v, W_v, W)
+    if !feasiblefound
+        println("No feasible solution found after one hour.")
+        return currentSol1D, 1000000000, time() - startBeforeFirstSol
+    end
     currentSol2D = sol1Dto2D(currentSol1D, K, n)
     currentValue = partitionValue(currentSol1D, n, m, l, lh, L)
     println("found with value: ", currentValue)

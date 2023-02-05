@@ -74,13 +74,13 @@ function benchmarkCoupes(timeLimit::Int64)
 end
 
 function benchmarkHeuristic(timeLimit::Int64)
-    files = readdir("./data_dual")
+    files = readdir("./data_heuristic")
     times = []
     values = []
     solutions = []
     for file in files
         println("Processing " * file)
-        clusters, value, compTime = heuristic("data_dual/" * file, timeLimit)
+        clusters, value, compTime = heuristic("data_heuristic/" * file, timeLimit)
         push!(times, compTime)
         push!(values, value)
         push!(solutions, clusters)
@@ -89,5 +89,5 @@ function benchmarkHeuristic(timeLimit::Int64)
                    Time = times,
                    Values = values,
                    Solutions = solutions)
-    CSV.write("benchmarkHeuristicAfterFix.csv", df, delim=";", append=true)
+    CSV.write("benchmarkHeuristicBigInstances.csv", df, delim=";", append=true)
 end
