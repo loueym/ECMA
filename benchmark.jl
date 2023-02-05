@@ -1,7 +1,7 @@
 include("dualisation.jl")
 include("plansCoupants.jl")
 include("branchAndCut.jl")
-include("generateSol.jl")
+include("heuristic.jl")
 
 using CSV, DataFrames
 
